@@ -3,6 +3,20 @@ import { useState, useRef } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import MapView, { Marker } from 'react-native-maps';
 import { useRouter } from 'expo-router';
+import * as Notifications from "expo-notifications";
+import { useEffect } from "react";
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+
+    // NEW (replaces shouldShowAlert)
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
 
 type Member = {
   id: string;
@@ -60,7 +74,7 @@ async function sendPing() {
   setMembers(m => [
     ...m,
     {
-      id: crypto.randomUUID(),
+      id: Date.now().toString(),
       name: 'New Member',
       phone,
       lat: 0,
@@ -78,11 +92,14 @@ async function sendPing() {
 };
 
 
+
 function handlePing(lat: number, lng: number) {
+  const pingId = `ping-${Date.now()}`;
+
   setMembers(m => [
     ...m,
     {
-      id: `ping-${Date.now()}`,
+      id: pingId,
       name: "Ping",
       phone: "",
       lat,
@@ -91,11 +108,41 @@ function handlePing(lat: number, lng: number) {
     },
   ]);
 
-  // optional: auto-remove after 60s
   setTimeout(() => {
-    setMembers(m => m.filter(x => x.id !== `ping-${Date.now()}`));
+    setMembers(m => m.filter(x => x.id !== pingId));
   }, 60_000);
 }
+useEffect(() => {
+  const sub = Notifications.addNotificationReceivedListener(notification => {
+    const data = notification.request.content.data as any;
+
+    if (data?.type === "PING") {
+      const lat = Number(data.lat);
+      const lng = Number(data.lng);
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        console.warn("Invalid ping payload", data);
+        return;
+      }
+
+      handlePing(lat, lng);
+    }
+  });
+
+  return () => sub.remove();
+}, []);
+useEffect(() => {
+  const sub = Notifications.addNotificationResponseReceivedListener(response => {
+    const data = response.notification.request.content.data as any;
+
+    if (data?.type === "PING") {
+      handlePing(Number(data.lat), Number(data.lng));
+    }
+  });
+
+  return () => sub.remove();
+}, []);
+
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 80 }}>
