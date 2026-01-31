@@ -66,6 +66,63 @@ app.post("/v1/devices/register", async (req, res) => {
 });
 
 /**
+ * Ping a circle with current location (ephemeral)
+ */
+app.post("/v1/ping", auth, async (req, res) => {
+  const Body = z.object({
+    circleId: z.string().uuid(),
+  });
+  const body = Body.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: "bad_request" });
+
+  const deviceId = (req as any).deviceId as string;
+
+  // must be in circle
+  const mem = await q(
+    `select 1 from circle_members where circle_id=$1 and device_id=$2`,
+    [body.data.circleId, deviceId]
+  );
+  if (mem.length === 0) return res.status(403).json({ error: "not_in_circle" });
+
+  // grab latest location
+  const loc = await q<{ lat: number; lng: number }>(
+    `select lat, lng from locations where device_id=$1`,
+    [deviceId]
+  );
+
+  if (!loc[0]) {
+    return res.status(409).json({ error: "no_location" });
+  }
+
+  const { lat, lng } = loc[0];
+
+  // get other members
+  const targets = await q<{ push_token: string | null }>(
+    `select d.push_token
+     from circle_members cm
+     join devices d on d.id = cm.device_id
+     where cm.circle_id=$1 and cm.device_id != $2`,
+    [body.data.circleId, deviceId]
+  );
+
+  await Promise.all(
+    targets
+      .filter(t => t.push_token)
+      .map(t =>
+        sendPush(
+          t.push_token!,
+          "📍 Ping",
+          "Someone shared their location",
+          { type: "PING", lat, lng }
+        )
+      )
+  );
+
+  res.json({ ok: true, lat, lng });
+});
+
+
+/**
  * Update device info (push token refresh, nickname, etc.)
  */
 app.patch("/v1/devices/me", auth, async (req, res) => {

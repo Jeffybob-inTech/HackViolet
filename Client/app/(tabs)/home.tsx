@@ -14,11 +14,9 @@ type Member = {
 };
 
 export default function HomeScreen() {
-  const router = useRouter();
-  const [phone, setPhone] = useState('');
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  const [members, setMembers] = useState<Member[]>([
+const deviceToken = "...";
+const circleId = "...";
+const [members, setMembers] = useState<Member[]>([
     {
       id: '1',
       name: 'Alex',
@@ -29,28 +27,75 @@ export default function HomeScreen() {
     },
   ]);
 
-  const addMember = () => {
-    if (!phone) return;
-
-    setMembers(m => [
-      ...m,
-      {
-        id: crypto.randomUUID(),
-        name: 'New Member',
-        phone,
-        lat: 40.7128,
-        lng: -74.006,
-        status: 'safe',
+async function sendPing() {
+  try {
+    const res = await fetch("https://YOUR_API_URL/v1/ping", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${deviceToken}`, // REAL value
       },
-    ]);
+      body: JSON.stringify({
+        circleId, // REAL value
+      }),
+    });
 
-    setPhone('');
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 600,
-      useNativeDriver: true,
-    }).start();
-  };
+    if (!res.ok) {
+      console.warn("Ping failed", await res.text());
+    }
+  } catch (e) {
+    console.error("Ping error", e);
+  }
+}
+
+  const router = useRouter();
+  const [phone, setPhone] = useState('');
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  
+
+  const addMember = () => {
+  if (!phone) return;
+
+  setMembers(m => [
+    ...m,
+    {
+      id: crypto.randomUUID(),
+      name: 'New Member',
+      phone,
+      lat: 0,
+      lng: 0,
+      status: 'safe',
+    },
+  ]);
+
+  setPhone('');
+  Animated.timing(fadeAnim, {
+    toValue: 1,
+    duration: 600,
+    useNativeDriver: true,
+  }).start();
+};
+
+
+function handlePing(lat: number, lng: number) {
+  setMembers(m => [
+    ...m,
+    {
+      id: `ping-${Date.now()}`,
+      name: "Ping",
+      phone: "",
+      lat,
+      lng,
+      status: "alert",
+    },
+  ]);
+
+  // optional: auto-remove after 60s
+  setTimeout(() => {
+    setMembers(m => m.filter(x => x.id !== `ping-${Date.now()}`));
+  }, 60_000);
+}
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 80 }}>
@@ -126,6 +171,12 @@ export default function HomeScreen() {
           <View>
             <Text style={styles.memberName}>{m.name}</Text>
             <Text style={styles.memberSub}>{m.phone}</Text>
+            <TouchableOpacity
+  onPress={() => sendPing()}
+  style={{ marginTop: 8 }}
+>
+  <Text style={{ color: "#A5B4FC" }}>Ping</Text>
+</TouchableOpacity>
           </View>
 
           <View
@@ -135,11 +186,12 @@ export default function HomeScreen() {
             ]}
           />
         </Animated.View>
+        
+
       ))}
     </ScrollView>
   );
 }
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
