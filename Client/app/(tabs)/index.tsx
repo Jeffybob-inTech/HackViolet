@@ -170,9 +170,10 @@ const Button = ({
       {/* Keypad */}
       <View style={styles.grid}>
   {/* Row 1 */}
+  
+  <Button label="&#x232B;" type="action" />
   <Button label="AC" type="action" />
   <Button label="%" type="action" />
-  <Button label="±" type="action" />
   <Button label="÷" type="operator" />
 
   {/* Row 2 */}
@@ -237,8 +238,8 @@ const styles = StyleSheet.create({
   /* BUTTON BASE */
   button: {
     width: '22%',
-    height: 84,
-    borderRadius: 38,
+    height: 90,
+    borderRadius: 138,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -251,7 +252,7 @@ const styles = StyleSheet.create({
 
   /* BUTTON TYPES */
   number: {
-    backgroundColor: '#3b3b3d',
+    backgroundColor: '#303030',
   },
 
   action: {
@@ -259,13 +260,13 @@ const styles = StyleSheet.create({
   },
 
   operator: {
-    backgroundColor: '#ffbb54',
+    backgroundColor: '#fc8f02',
   },
 
   /* TEXT */
   buttonText: {
     fontSize: 42,
-    fontWeight: '200',
+    fontWeight: '400',
     color: '#FFFFFF',
   },
 
@@ -280,11 +281,11 @@ const styles = StyleSheet.create({
   },
 
   operatorActive: {
-  backgroundColor: '#FFFFFF',
+  backgroundColor: '#FF9F0A',
 },
 
 operatorActiveText: {
-  color: '#FF9F0A',
+  color: '#ffffff',
 },
 
 });
