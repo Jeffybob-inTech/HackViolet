@@ -97,7 +97,7 @@ function ActionPill({
       Configure discreet input patterns that trigger actions.
     </Text>
     <TouchableOpacity
-  onPress={() => router.back()}
+  onPress={() => router.push('/')}
   style={styles.backBtn}
   activeOpacity={0.7}
 >
