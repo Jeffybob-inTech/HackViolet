@@ -268,6 +268,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
+    marginBottom: 18,
   },
 
   /* BUTTON BASE */
