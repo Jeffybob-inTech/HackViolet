@@ -5,45 +5,83 @@ export default function CalculatorScreen() {
   const [display, setDisplay] = useState('0');
   const [expression, setExpression] = useState('');
   const [equalsStreak, setEqualsStreak] = useState(0);
+  const [activeOp, setActiveOp] = useState<string | null>(null);
+
+  const OP_MAP: Record<string, string> = {
+  '÷': '/',
+  '×': '*',
+  '−': '-',
+  '+': '+',
+  };
 
   const press = (val: string) => {
-    if (val === 'AC') {
-      setDisplay('0');
-      setExpression('');
-      setEqualsStreak(0);
-      return;
-    }
-
-    if (val === '=') {
-      setEqualsStreak(s => {
-        const n = s + 1;
-        if (n >= 3) {
-          triggerGhostCall();
-          return 0;
-        }
-        return n;
-      });
-
-      if (!expression || /[+\-*/.]$/.test(expression)) return;
-
-      try {
-        const result = Function(`"use strict"; return (${expression})`)();
-        setDisplay(String(result));
-        setExpression(String(result));
-      } catch {
-        setDisplay('Error');
-        setExpression('');
-      }
-      return;
-    }
-
-    if (/[+\-*/]/.test(val) && /[+\-*/]$/.test(expression)) return;
-
+  // Clear
+  if (val === 'AC') {
+    setDisplay('0');
+    setExpression('');
+    setActiveOp(null);
     setEqualsStreak(0);
-    const next = expression + val;
-    setExpression(next);
-    setDisplay(next);
-  };
+    return;
+  }
+
+  // Equals
+  if (val === '=') {
+    setEqualsStreak(s => {
+      const n = s + 1;
+      if (n >= 3) {
+        triggerGhostCall();
+        return 0;
+      }
+      return n;
+    });
+
+    if (!expression || /[+\-*/.]$/.test(expression)) return;
+
+    try {
+      const result = Function(`"use strict"; return (${expression})`)();
+      const resultStr = String(result);
+      setDisplay(resultStr);
+      setExpression(resultStr);
+    } catch {
+      setDisplay('Error');
+      setExpression('');
+    }
+
+    setActiveOp(null);
+    return;
+  }
+
+  // Operator
+  if (OP_MAP[val]) {
+    const op = OP_MAP[val];
+
+    if (!expression) return;
+    if (/[+\-*/]$/.test(expression)) {
+      // replace operator
+      setExpression(expression.slice(0, -1) + op);
+    } else {
+      setExpression(expression + op);
+    }
+
+    setDisplay(expression + op);
+    setActiveOp(val);
+    setEqualsStreak(0);
+    return;
+  }
+
+  // Number / dot
+  setActiveOp(null);
+  setEqualsStreak(0);
+
+  const next =
+    display === '0' && val !== '.'
+      ? val
+      : expression + val;
+
+  setExpression(next);
+  setDisplay(next);
+};
+
 
   const triggerGhostCall = () => {
     Alert.alert('Incoming Call', 'Ghost call triggered (demo)', [
@@ -52,6 +90,8 @@ export default function CalculatorScreen() {
   };
 
 
+type ButtonType = 'number' | 'action' | 'operator';
+
 const Button = ({
   label,
   wide,
@@ -59,8 +99,10 @@ const Button = ({
 }: {
   label: string;
   wide?: boolean;
-  type?: 'number' | 'action' | 'operator';
+  type?: ButtonType;
 }) => {
+  const isActive = type === 'operator' && activeOp === label;
+
   return (
     <TouchableOpacity
       activeOpacity={0.85}
@@ -71,6 +113,7 @@ const Button = ({
         type === 'number' && styles.number,
         type === 'action' && styles.action,
         type === 'operator' && styles.operator,
+        isActive && styles.operatorActive,
       ]}
     >
       <Text
@@ -78,6 +121,7 @@ const Button = ({
           styles.buttonText,
           type === 'action' && styles.actionText,
           type === 'operator' && styles.operatorText,
+          isActive && styles.operatorActiveText,
         ]}
       >
         {label}
@@ -85,6 +129,7 @@ const Button = ({
     </TouchableOpacity>
   );
 };
+
 
 
   return (
@@ -211,4 +256,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '600',
   },
+
+  operatorActive: {
+  backgroundColor: '#FFFFFF',
+},
+
+operatorActiveText: {
+  color: '#FF9F0A',
+},
+
 });
