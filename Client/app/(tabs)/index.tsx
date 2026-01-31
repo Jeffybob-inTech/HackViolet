@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 export default function CalculatorScreen() {
   const router = useRouter();
   const [minusStreak, setMinusStreak] = useState(0);
+  const [additionStreak, setAdditionStreak] = useState(0);
   const [display, setDisplay] = useState('0');
   const [expression, setExpression] = useState('');
   const [equalsStreak, setEqualsStreak] = useState(0);
@@ -74,6 +75,21 @@ if (OP_MAP[val]) {
   } else {
     setMinusStreak(0);
   }
+  // access homepage
+  if (val === '+') {
+    setAdditionStreak(prev => {
+      const next = prev + 1;
+      if (next >= 3) {
+        setAdditionStreak(0);
+        router.push('/home');
+        return 0;
+      }
+      return next;
+    });
+  } else {
+    setAdditionStreak(0);
+  }
+  
 
   if (!expression) return;
 
