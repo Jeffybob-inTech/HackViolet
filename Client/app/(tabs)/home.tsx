@@ -1,0 +1,271 @@
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Animated } from 'react-native';
+import { useState, useRef } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
+import MapView, { Marker } from 'react-native-maps';
+import { useRouter } from 'expo-router';
+
+type Member = {
+  id: string;
+  name: string;
+  phone: string;
+  lat: number;
+  lng: number;
+  status: 'safe' | 'alert';
+};
+
+export default function HomeScreen() {
+  const router = useRouter();
+  const [phone, setPhone] = useState('');
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  const [members, setMembers] = useState<Member[]>([
+    {
+      id: '1',
+      name: 'Alex',
+      phone: '123-456-7890',
+      lat: 37.7749,
+      lng: -122.4194,
+      status: 'safe',
+    },
+  ]);
+
+  const addMember = () => {
+    if (!phone) return;
+
+    setMembers(m => [
+      ...m,
+      {
+        id: crypto.randomUUID(),
+        name: 'New Member',
+        phone,
+        lat: 40.7128,
+        lng: -74.006,
+        status: 'safe',
+      },
+    ]);
+
+    setPhone('');
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 80 }}>
+      {/* Header */}
+      <View style={styles.headerRow}>
+        <Text style={styles.header}>Home</Text>
+        <TouchableOpacity onPress={() => router.push('/settings')}>
+          <Text style={styles.settings}>Settings</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Gradient Hero */}
+      <LinearGradient
+        colors={['#6366F1', '#8B5CF6']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.hero}
+      >
+        <Text style={styles.heroTitle}>Connected Circle</Text>
+        <Text style={styles.heroSub}>
+          See where your people are. Get alerts when it matters.
+        </Text>
+      </LinearGradient>
+
+      {/* Add Member */}
+      <View style={styles.addCard}>
+        <Text style={styles.sectionTitle}>Add member</Text>
+
+        <View style={styles.inputRow}>
+          <TextInput
+            placeholder="Phone number"
+            placeholderTextColor="#6B7280"
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+            style={styles.input}
+          />
+          <TouchableOpacity style={styles.addBtn} onPress={addMember}>
+            <Text style={styles.addBtnText}>Add</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Map */}
+      <Text style={styles.sectionTitle}>Live locations</Text>
+
+      <View style={styles.mapCard}>
+        <MapView
+          style={StyleSheet.absoluteFillObject}
+          initialRegion={{
+            latitude: members[0]?.lat ?? 37.7749,
+            longitude: members[0]?.lng ?? -122.4194,
+            latitudeDelta: 20,
+            longitudeDelta: 20,
+          }}
+        >
+          {members.map(m => (
+            <Marker
+              key={m.id}
+              coordinate={{ latitude: m.lat, longitude: m.lng }}
+              title={m.name}
+              pinColor={m.status === 'safe' ? '#22C55E' : '#EF4444'}
+            />
+          ))}
+        </MapView>
+      </View>
+
+      {/* Members List */}
+      <Text style={styles.sectionTitle}>Members</Text>
+
+      {members.map(m => (
+        <Animated.View key={m.id} style={[styles.memberCard, { opacity: fadeAnim }]}>
+          <View>
+            <Text style={styles.memberName}>{m.name}</Text>
+            <Text style={styles.memberSub}>{m.phone}</Text>
+          </View>
+
+          <View
+            style={[
+              styles.statusDot,
+              m.status === 'safe' ? styles.safe : styles.alert,
+            ]}
+          />
+        </Animated.View>
+      ))}
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0B0F1A',
+    padding: 16,
+  },
+
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 50,
+    marginBottom: 16,
+  },
+
+  header: {
+    fontSize: 32,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+
+  settings: {
+    color: '#A5B4FC',
+    fontSize: 16,
+  },
+
+  hero: {
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 20,
+  },
+
+  heroTitle: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+
+  heroSub: {
+    marginTop: 6,
+    color: '#E0E7FF',
+    fontSize: 14,
+  },
+
+  sectionTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '500',
+    marginBottom: 10,
+    marginTop: 20,
+  },
+
+  addCard: {
+    backgroundColor: '#111827',
+    borderRadius: 20,
+    padding: 16,
+  },
+
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  input: {
+    flex: 1,
+    height: 44,
+    backgroundColor: '#1F2937',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    color: '#FFFFFF',
+  },
+
+  addBtn: {
+    marginLeft: 10,
+    backgroundColor: '#6366F1',
+    paddingHorizontal: 16,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+  },
+
+  addBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '500',
+  },
+
+  mapCard: {
+    height: 220,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#111827',
+  },
+
+  memberCard: {
+    backgroundColor: '#111827',
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+
+  memberName: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+
+  memberSub: {
+    color: '#9CA3AF',
+    fontSize: 13,
+    marginTop: 2,
+  },
+
+  statusDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+
+  safe: {
+    backgroundColor: '#22C55E',
+  },
+
+  alert: {
+    backgroundColor: '#EF4444',
+  },
+});
