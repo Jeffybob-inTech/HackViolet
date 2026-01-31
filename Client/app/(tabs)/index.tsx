@@ -1,7 +1,11 @@
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useState } from 'react';
+import { useRouter } from 'expo-router';
+
 
 export default function CalculatorScreen() {
+  const router = useRouter();
+  const [minusStreak, setMinusStreak] = useState(0);
   const [display, setDisplay] = useState('0');
   const [expression, setExpression] = useState('');
   const [equalsStreak, setEqualsStreak] = useState(0);
@@ -52,22 +56,40 @@ export default function CalculatorScreen() {
   }
 
   // Operator
-  if (OP_MAP[val]) {
-    const op = OP_MAP[val];
+  // Operator
+if (OP_MAP[val]) {
+  const op = OP_MAP[val];
 
-    if (!expression) return;
-    if (/[+\-*/]$/.test(expression)) {
-      // replace operator
-      setExpression(expression.slice(0, -1) + op);
-    } else {
-      setExpression(expression + op);
-    }
-
-    setDisplay(expression + op);
-    setActiveOp(val);
-    setEqualsStreak(0);
-    return;
+  // 🔒 Minus passcode: 3 taps → settings
+  if (val === '−') {
+    setMinusStreak(prev => {
+      const next = prev + 1;
+      if (next >= 3) {
+        setMinusStreak(0);
+        router.push('/settings');
+        return 0;
+      }
+      return next;
+    });
+  } else {
+    setMinusStreak(0);
   }
+
+  if (!expression) return;
+
+  if (/[+\-*/]$/.test(expression)) {
+    setExpression(expression.slice(0, -1) + op);
+  } else {
+    setExpression(expression + op);
+  }
+
+  setDisplay(expression + op);
+  setActiveOp(val);
+  setEqualsStreak(0);
+  setMinusStreak(0);
+  return;
+}
+
 
   // Number / dot
   setActiveOp(null);
