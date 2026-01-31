@@ -106,9 +106,7 @@ if (OP_MAP[val]) {
 
 
   const triggerGhostCall = () => {
-    Alert.alert('Incoming Call', 'Ghost call triggered (demo)', [
-      { text: 'Dismiss' },
-    ]);
+    router.push('/call');
   };
 
 
