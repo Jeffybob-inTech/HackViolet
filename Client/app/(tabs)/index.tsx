@@ -28,6 +28,24 @@ export default function CalculatorScreen() {
     setEqualsStreak(0);
     return;
   }
+  // Backspace
+if (val === '⌫') {
+  if (!expression) {
+    setDisplay('0');
+    return;
+  }
+
+  const next = expression.slice(0, -1);
+
+  setExpression(next);
+  setDisplay(next || '0');
+  setActiveOp(null);
+  setEqualsStreak(0);
+  setMinusStreak(0);
+  setAdditionStreak(0);
+  return;
+}
+
 
   // Equals
   if (val === '=') {
@@ -98,8 +116,11 @@ if (OP_MAP[val]) {
   } else {
     setExpression(expression + op);
   }
-
-  setDisplay(expression + op);
+  if(op == "*"){
+  setDisplay(expression + val);
+  }else{
+    setDisplay(expression + op);
+  }
   setActiveOp(val);
   setEqualsStreak(0);
   setMinusStreak(0);
@@ -185,7 +206,7 @@ const Button = ({
       <View style={styles.grid}>
   {/* Row 1 */}
   
-  <Button label="&#x232B;" type="action" />
+  <Button label="⌫" type="action" />
   <Button label="AC" type="action" />
   <Button label="%" type="action" />
   <Button label="÷" type="operator" />

@@ -1,25 +1,31 @@
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
-import { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Animated } from 'react-native';
+import { useState, useRef } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
+import MapView, { Marker } from 'react-native-maps';
 import { useRouter } from 'expo-router';
 
 type Member = {
   id: string;
   name: string;
   phone: string;
+  lat: number;
+  lng: number;
   status: 'safe' | 'alert';
-  lastSeen: string;
 };
 
 export default function HomeScreen() {
   const router = useRouter();
   const [phone, setPhone] = useState('');
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
   const [members, setMembers] = useState<Member[]>([
     {
       id: '1',
       name: 'Alex',
       phone: '123-456-7890',
+      lat: 37.7749,
+      lng: -122.4194,
       status: 'safe',
-      lastSeen: '5 min ago',
     },
   ]);
 
@@ -32,16 +38,22 @@ export default function HomeScreen() {
         id: crypto.randomUUID(),
         name: 'New Member',
         phone,
+        lat: 40.7128,
+        lng: -74.006,
         status: 'safe',
-        lastSeen: 'Just added',
       },
     ]);
 
     setPhone('');
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 80 }}>
       {/* Header */}
       <View style={styles.headerRow}>
         <Text style={styles.header}>Home</Text>
@@ -50,12 +62,22 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Gradient Hero */}
+      <LinearGradient
+        colors={['#6366F1', '#8B5CF6']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.hero}
+      >
+        <Text style={styles.heroTitle}>Connected Circle</Text>
+        <Text style={styles.heroSub}>
+          See where your people are. Get alerts when it matters.
+        </Text>
+      </LinearGradient>
+
       {/* Add Member */}
       <View style={styles.addCard}>
-        <Text style={styles.sectionTitle}>Add a member</Text>
-        <Text style={styles.sub}>
-          Enter a phone number to share location and alerts.
-        </Text>
+        <Text style={styles.sectionTitle}>Add member</Text>
 
         <View style={styles.inputRow}>
           <TextInput
@@ -72,38 +94,52 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* Members */}
+      {/* Map */}
+      <Text style={styles.sectionTitle}>Live locations</Text>
+
+      <View style={styles.mapCard}>
+        <MapView
+          style={StyleSheet.absoluteFillObject}
+          initialRegion={{
+            latitude: members[0]?.lat ?? 37.7749,
+            longitude: members[0]?.lng ?? -122.4194,
+            latitudeDelta: 20,
+            longitudeDelta: 20,
+          }}
+        >
+          {members.map(m => (
+            <Marker
+              key={m.id}
+              coordinate={{ latitude: m.lat, longitude: m.lng }}
+              title={m.name}
+              pinColor={m.status === 'safe' ? '#22C55E' : '#EF4444'}
+            />
+          ))}
+        </MapView>
+      </View>
+
+      {/* Members List */}
       <Text style={styles.sectionTitle}>Members</Text>
 
-      {members.map(member => (
-        <View key={member.id} style={styles.memberCard}>
+      {members.map(m => (
+        <Animated.View key={m.id} style={[styles.memberCard, { opacity: fadeAnim }]}>
           <View>
-            <Text style={styles.memberName}>{member.name}</Text>
-            <Text style={styles.memberSub}>
-              {member.phone} • {member.lastSeen}
-            </Text>
+            <Text style={styles.memberName}>{m.name}</Text>
+            <Text style={styles.memberSub}>{m.phone}</Text>
           </View>
 
           <View
             style={[
               styles.statusDot,
-              member.status === 'safe' ? styles.safe : styles.alert,
+              m.status === 'safe' ? styles.safe : styles.alert,
             ]}
           />
-        </View>
+        </Animated.View>
       ))}
-
-      {/* Activity */}
-      <Text style={styles.sectionTitle}>Recent activity</Text>
-
-      <View style={styles.activityCard}>
-        <Text style={styles.activityText}>
-          No recent alerts. All members are safe.
-        </Text>
-      </View>
     </ScrollView>
   );
 }
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -115,8 +151,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
     paddingTop: 50,
+    marginBottom: 16,
   },
 
   header: {
@@ -126,29 +162,40 @@ const styles = StyleSheet.create({
   },
 
   settings: {
-    color: '#818CF8',
+    color: '#A5B4FC',
     fontSize: 16,
+  },
+
+  hero: {
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 20,
+  },
+
+  heroTitle: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+
+  heroSub: {
+    marginTop: 6,
+    color: '#E0E7FF',
+    fontSize: 14,
   },
 
   sectionTitle: {
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '500',
-    marginBottom: 8,
+    marginBottom: 10,
     marginTop: 20,
-  },
-
-  sub: {
-    color: '#9CA3AF',
-    fontSize: 14,
-    marginBottom: 12,
   },
 
   addCard: {
     backgroundColor: '#111827',
     borderRadius: 20,
     padding: 16,
-    marginBottom: 8,
   },
 
   inputRow: {
@@ -163,7 +210,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 14,
     color: '#FFFFFF',
-    fontSize: 15,
   },
 
   addBtn: {
@@ -178,7 +224,13 @@ const styles = StyleSheet.create({
   addBtnText: {
     color: '#FFFFFF',
     fontWeight: '500',
-    fontSize: 15,
+  },
+
+  mapCard: {
+    height: 220,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#111827',
   },
 
   memberCard: {
@@ -215,17 +267,5 @@ const styles = StyleSheet.create({
 
   alert: {
     backgroundColor: '#EF4444',
-  },
-
-  activityCard: {
-    backgroundColor: '#111827',
-    borderRadius: 18,
-    padding: 16,
-    marginTop: 4,
-  },
-
-  activityText: {
-    color: '#9CA3AF',
-    fontSize: 14,
   },
 });
