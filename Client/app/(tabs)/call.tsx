@@ -1,66 +1,83 @@
-import { View, Text, StyleSheet, TouchableOpacity, Image, Vibration, Platform } from 'react-native';
-import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'expo-router';
+import { View, Text, StyleSheet, TouchableOpacity, Vibration, Platform } from 'react-native';
+import { useState, useRef, useCallback } from 'react';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
-import { Ionicons } from '@expo/vector-icons'; // Built into Expo
+// ADDED Entypo here
+import { Ionicons, Entypo } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function CallScreen() {
   const router = useRouter();
   const [callState, setCallState] = useState<'INCOMING' | 'CONNECTED'>('INCOMING');
   const [timer, setTimer] = useState(0);
-  const soundRef = useRef<Audio.Sound | null>(null);
+  
+  // UI States
+  const [isMuted, setIsMuted] = useState(false);
+  const [isSpeaker, setIsSpeaker] = useState(false);
+  const [showKeypad, setShowKeypad] = useState(false);
 
-  // --- ASSETS (Replace these with real URLs or local requires later) ---
-  // For demo, we use a generic ringtone URL if you don't have a file yet
+  // Refs
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const vibrationInterval = useRef<any>(null);
+
   const RINGTONE_URI = 'https://www.soundjay.com/phone/phone-ringing-1.mp3'; 
 
-  // --- 1. SETUP INCOMING CALL (Ringing + Vibration) ---
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
+  // --- LOGIC: RINGER & VIBRATION ---
+  useFocusEffect(
+    useCallback(() => {
+      setCallState('INCOMING');
+      setTimer(0);
+      setIsMuted(false);
+      setIsSpeaker(false);
+      setShowKeypad(false);
 
-    const startRinging = async () => {
-      // Setup Audio Mode to play even if switch is on silent (iOS)
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: true,
-      });
+      const startRinging = async () => {
+        try {
+          await Audio.setAudioModeAsync({
+            playsInSilentModeIOS: true,
+            staysActiveInBackground: true,
+          });
+          const { sound } = await Audio.Sound.createAsync(
+            { uri: RINGTONE_URI },
+            { shouldPlay: true, isLooping: true }
+          );
+          soundRef.current = sound;
+        } catch (e) {}
 
-      // Load & Loop Ringtone
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: RINGTONE_URI },
-        { shouldPlay: true, isLooping: true }
-      );
-      soundRef.current = sound;
+        const triggerVibration = () => {
+          const duration = Platform.OS === 'ios' ? 400 : 1000; 
+          Vibration.vibrate(duration);
+        };
+        triggerVibration();
+        vibrationInterval.current = setInterval(triggerVibration, 1200);
+      };
 
-      // Vibration Pattern (0.5s on, 1s off)
-      const VIBE_PATTERN = [0, 500, 1000]; 
-      Vibration.vibrate(VIBE_PATTERN, true); // true = loop
-    };
+      startRinging();
 
-    startRinging();
+      return () => {
+        stopRinging();
+      };
+    }, [])
+  );
 
-    return () => {
-      stopRinging();
-    };
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      let interval: any;
+      if (callState === 'CONNECTED') {
+        interval = setInterval(() => { setTimer((t) => t + 1); }, 1000);
+      }
+      return () => clearInterval(interval);
+    }, [callState])
+  );
 
-  // --- 2. TIMER LOGIC (Once Connected) ---
-  useEffect(() => {
-    let interval: any;
-    if (callState === 'CONNECTED') {
-      interval = setInterval(() => {
-        setTimer((t) => t + 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [callState]);
-
-  // --- HELPER FUNCTIONS ---
   const stopRinging = async () => {
     if (soundRef.current) {
-      await soundRef.current.stopAsync();
-      await soundRef.current.unloadAsync();
+      try { await soundRef.current.stopAsync(); await soundRef.current.unloadAsync(); } catch (e) {}
+    }
+    if (vibrationInterval.current) {
+      clearInterval(vibrationInterval.current);
+      vibrationInterval.current = null;
     }
     Vibration.cancel();
   };
@@ -69,190 +86,330 @@ export default function CallScreen() {
     await stopRinging();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setCallState('CONNECTED');
-    
-    // TODO: HERE IS WHERE WE WILL TRIGGER THE "DAD" VOICE API LATER
-    // playDadIntro(); 
   };
 
   const handleDecline = async () => {
     await stopRinging();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    router.replace('/'); // Go back to Calculator
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  const formatTimer = (totalSeconds: number) => {
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes < 10 ? '0' : ''}${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
-  // --- RENDER: INCOMING STATE ---
+  // --- COMPONENT: KEYPAD OVERLAY ---
+  const Keypad = () => {
+    const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'];
+    return (
+      <View style={styles.keypadContainer}>
+        <View style={styles.keypadGrid}>
+          {keys.map((k) => (
+             <TouchableOpacity key={k} style={styles.keypadButton} onPress={() => Haptics.selectionAsync()}>
+                <Text style={styles.keypadText}>{k}</Text>
+             </TouchableOpacity>
+          ))}
+        </View>
+        <TouchableOpacity onPress={() => setShowKeypad(false)} style={styles.hideKeypadBtn}>
+            <Text style={styles.hideKeypadText}>Hide</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  // --- RENDER: INCOMING ---
   if (callState === 'INCOMING') {
     return (
-      <View style={styles.container}>
-        <View style={styles.topContainer}>
-          <View style={styles.avatarPlaceholder}>
-             <Ionicons name="person" size={60} color="#FFF" />
-          </View>
-          <Text style={styles.contactName}>Dad</Text>
-          <Text style={styles.contactStatus}>Mobile...</Text>
-        </View>
+      <View style={styles.background}>
+        <SafeAreaView style={styles.container}>
+            <View style={styles.header}>
+                <Ionicons name="filter-circle-outline" size={26} color="rgba(255,255,255,0.6)" />
+                <Ionicons name="information-circle-outline" size={28} color="rgba(255,255,255,0.6)" />
+            </View>
 
-        <View style={styles.bottomContainer}>
-          <View style={styles.actionRow}>
-            {/* DECLINE BUTTON */}
-            <TouchableOpacity onPress={handleDecline} style={[styles.actionBtn, styles.declineBtn]}>
-              <Ionicons name="call" size={32} color="#FFF" />
-              <Text style={styles.btnLabel}>Decline</Text>
-            </TouchableOpacity>
+            <View style={styles.contentIncoming}>
+                <Text style={styles.sharedNameText}>Dad</Text>
+                <Text style={styles.statusText}>Mobile...</Text>
+            </View>
 
-            {/* ACCEPT BUTTON */}
-            <TouchableOpacity onPress={handleAccept} style={[styles.actionBtn, styles.acceptBtn]}>
-              <Ionicons name="call" size={32} color="#FFF" />
-              <Text style={styles.btnLabel}>Accept</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+            <View style={styles.controlsAreaIncoming}>
+                <View style={styles.controlColumn}>
+                    <TouchableOpacity style={styles.auxButton}>
+                        <View style={styles.auxIconCircle}>
+                            <Ionicons name="chatbubble-sharp" size={22} color="#FFF" />
+                        </View>
+                        <Text style={styles.auxText}>Message</Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity onPress={handleDecline} style={styles.mainButtonDecline}>
+                        <Ionicons name="call" size={36} color="#FFF" style={styles.phoneIconDown} />
+                    </TouchableOpacity>
+                    <Text style={styles.mainButtonLabel}>Decline</Text>
+                </View>
+
+                <View style={styles.controlColumn}>
+                    <TouchableOpacity style={styles.auxButton}>
+                        <View style={styles.auxIconCircle}>
+                             {/* UPDATED TO ENTYPO VOICEMAIL */}
+                             <Entypo name="voicemail" size={24} color="#FFF" />
+                        </View>
+                        <Text style={styles.auxText}>Voicemail</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity onPress={handleAccept} style={styles.mainButtonAccept}>
+                        <Ionicons name="call" size={36} color="#FFF" />
+                    </TouchableOpacity>
+                    <Text style={styles.mainButtonLabel}>Accept</Text>
+                </View>
+            </View>
+        </SafeAreaView>
       </View>
     );
   }
 
-  // --- RENDER: CONNECTED STATE ---
+  // --- RENDER: CONNECTED ---
   return (
-    <View style={styles.container}>
-      <View style={styles.topContainer}>
-        <View style={styles.avatarPlaceholderSmall}>
-           <Ionicons name="person" size={40} color="#FFF" />
+    <View style={styles.background}>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.contentConnected}>
+            <View style={styles.dynamicIslandSpacer} /> 
+            <Text style={styles.timerText}>{formatTimer(timer)}</Text>
+            <Text style={styles.sharedNameText}>Dad</Text>
         </View>
-        <Text style={styles.contactName}>Dad</Text>
-        <Text style={styles.timer}>{formatTime(timer)}</Text>
-      </View>
 
-      {/* FAKE CALL CONTROLS */}
-      <View style={styles.gridContainer}>
-        <ControlIcon icon="mic-off" label="mute" />
-        <ControlIcon icon="keypad" label="keypad" />
-        <ControlIcon icon="volume-high" label="speaker" />
-        <ControlIcon icon="add" label="add call" />
-        <ControlIcon icon="videocam" label="FaceTime" />
-        <ControlIcon icon="person-circle" label="contacts" />
-      </View>
+        {showKeypad ? (
+            <Keypad />
+        ) : (
+            <View style={styles.gridContainer}>
+                <View style={styles.gridRow}>
+                    <GridButton 
+                        icon="volume-high" 
+                        label="Audio" 
+                        isActive={isSpeaker}
+                        onPress={() => setIsSpeaker(!isSpeaker)}
+                    />
+                    <GridButton icon="videocam" label="FaceTime" />
+                    <GridButton 
+                        icon="mic-off" 
+                        label="Mute" 
+                        isActive={isMuted}
+                        onPress={() => setIsMuted(!isMuted)}
+                    />
+                </View>
+                
+                <View style={styles.gridRow}>
+                    <GridButton icon="person-add" label="Add" />
+                    
+                    <View style={styles.gridItem}>
+                        <TouchableOpacity onPress={handleDecline} style={styles.endCallButton}>
+                             <Ionicons name="call" size={32} color="#FFF" style={styles.phoneIconDown} />
+                        </TouchableOpacity>
+                        <Text style={styles.gridLabel}>End</Text>
+                    </View>
 
-      <View style={styles.bottomContainer}>
-        <TouchableOpacity onPress={handleDecline} style={[styles.actionBtn, styles.declineBtn, { width: 80 }]}>
-           <Ionicons name="call" size={32} color="#FFF" />
-        </TouchableOpacity>
-      </View>
+                    <GridButton 
+                        icon="keypad" 
+                        label="Keypad" 
+                        onPress={() => setShowKeypad(true)}
+                    />
+                </View>
+            </View>
+        )}
+      </SafeAreaView>
     </View>
   );
 }
 
-// Dumb Component for the Fake Buttons
-const ControlIcon = ({ icon, label }: { icon: any, label: string }) => (
-  <View style={styles.gridItem}>
-    <View style={styles.iconCircle}>
-      <Ionicons name={icon} size={32} color="#FFF" />
+const GridButton = ({ 
+    icon, 
+    label, 
+    isActive = false,
+    onPress
+}: { 
+    icon: any, 
+    label: string, 
+    isActive?: boolean,
+    onPress?: () => void
+}) => (
+    <View style={styles.gridItem}>
+        <TouchableOpacity 
+            style={[styles.gridIconCircle, isActive && styles.gridIconCircleActive]} 
+            onPress={() => {
+                Haptics.selectionAsync();
+                if (onPress) onPress();
+            }}
+        >
+            <Ionicons 
+                name={icon} 
+                size={35} 
+                color={isActive ? "#000" : "#FFF"} 
+            />
+        </TouchableOpacity>
+        <Text style={styles.gridLabel}>{label}</Text>
     </View>
-    <Text style={styles.gridLabel}>{label}</Text>
-  </View>
 );
 
 const styles = StyleSheet.create({
+  background: {
+    flex: 1,
+    backgroundColor: '#1C1C1E', 
+  },
   container: {
     flex: 1,
-    backgroundColor: '#0F1215', // Dark grey/black background like iOS
-    paddingTop: 80,
-    paddingBottom: 40,
+    paddingHorizontal: 20,
   },
-  topContainer: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  avatarPlaceholder: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#8E8E93',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  avatarPlaceholderSmall: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#8E8E93',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  contactName: {
-    fontSize: 36,
-    color: '#FFF',
-    fontWeight: '400',
-  },
-  contactStatus: {
-    fontSize: 20,
-    color: '#FFF',
-    marginTop: 10,
-    opacity: 0.8,
-  },
-  timer: {
-    fontSize: 20,
-    color: '#FFF',
-    marginTop: 10,
-  },
-  bottomContainer: {
-    paddingHorizontal: 40,
-    paddingBottom: 40,
-  },
-  actionRow: {
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: '100%',
+    marginTop: 10,
+    paddingHorizontal: 15,
   },
-  actionBtn: {
-    width: 75,
-    height: 75,
-    borderRadius: 40,
-    justifyContent: 'center',
+  contentIncoming: {
+    marginTop: 50,
     alignItems: 'center',
-    marginBottom: 10,
   },
-  acceptBtn: {
-    backgroundColor: '#30D158', // iOS Green
+  sharedNameText: {
+    fontSize: 40,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+    marginBottom: 8,
   },
-  declineBtn: {
-    backgroundColor: '#FF3B30', // iOS Red
+  statusText: {
+    fontSize: 20,
+    color: 'rgba(255,255,255,0.6)',
+    fontWeight: '500',
   },
-  btnLabel: {
-    color: '#FFF',
-    marginTop: 85, // Push text below button
+  controlsAreaIncoming: {
     position: 'absolute',
+    bottom: 50,
+    left: 30,
+    right: 30,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+  },
+  contentConnected: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  dynamicIslandSpacer: {
+    height: 40, 
+  },
+  timerText: {
     fontSize: 14,
+    color: 'rgba(255,255,255,0.5)',
+    fontWeight: '600',
+    marginBottom: 4,
   },
   gridContainer: {
+    position: 'absolute',
+    bottom: 50,
+    left: 20,
+    right: 20,
+    gap: 20, 
+  },
+  gridRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    paddingHorizontal: 40,
-    marginBottom: 40,
+    justifyContent: 'space-around', 
   },
   gridItem: {
-    width: '33%',
     alignItems: 'center',
-    marginBottom: 30,
+    width: 80, 
   },
-  iconCircle: {
-    width: 60,
-    height: 60,
+  gridIconCircle: {
+    width: 75, 
+    height: 75,
+    borderRadius: 37.5,
+    backgroundColor: 'rgba(255,255,255,0.12)', 
     justifyContent: 'center',
     alignItems: 'center',
-    // backgroundColor: 'rgba(255,255,255,0.1)', // Optional glassy look
+    marginBottom: 8,
+  },
+  gridIconCircleActive: {
+    backgroundColor: '#FFFFFF', 
+  },
+  endCallButton: {
+    width: 75,
+    height: 75,
+    borderRadius: 37.5,
+    backgroundColor: '#FF3B30', 
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   gridLabel: {
     color: '#FFF',
-    fontSize: 12,
-    marginTop: 5,
+    fontSize: 13,
+    fontWeight: '500',
   },
+  keypadContainer: {
+    position: 'absolute',
+    bottom: 40,
+    left: 30,
+    right: 30,
+    alignItems: 'center',
+  },
+  keypadGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 20,
+    marginBottom: 20,
+  },
+  keypadButton: {
+    width: 75,
+    height: 75,
+    borderRadius: 37.5,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 10,
+  },
+  keypadText: {
+    color: '#FFF',
+    fontSize: 32,
+    fontWeight: '500',
+  },
+  hideKeypadBtn: {
+    marginTop: 10,
+    padding: 10,
+  },
+  hideKeypadText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  controlColumn: { alignItems: 'center', gap: 30 },
+  auxButton: { alignItems: 'center', gap: 8 },
+  auxIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  auxText: { color: '#FFF', fontSize: 13, fontWeight: '600' },
+  mainButtonDecline: {
+    width: 75, 
+    height: 75,
+    borderRadius: 37.5,
+    backgroundColor: '#FF3B30',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mainButtonAccept: {
+    width: 75, 
+    height: 75,
+    borderRadius: 37.5,
+    backgroundColor: '#30D158',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  phoneIconDown: { transform: [{ rotate: '135deg' }] },
+  mainButtonLabel: { color: '#FFF', fontSize: 14, fontWeight: '600', marginTop: 8 }
 });
