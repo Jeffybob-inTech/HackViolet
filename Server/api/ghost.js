@@ -23,16 +23,12 @@ router.post('/wake-up', async (req, res) => {
   try {
     console.log('🔔 Call connected. Waking up Dad...');
 
-    // ✅ FIX 1: Use the 2.5 model you requested (Avoids the 429 on 'latest')
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.5-flash",
-      generationConfig: { maxOutputTokens: 60 } // Force concise answers for speed
-    });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const prompt = `
       Roleplay: You are a protective father named Jim. 
-      Your daughter just called. Answer the phone naturally.
-      CRITICAL: ONLY write the spoken words. No *actions*. Keep it under 20 words.
+      Your daughter just called. Answer the phone naturally. Preferably only 1-2 sentences.
+      CRITICAL: ONLY write the spoken words. No *actions*.
     `;
 
     const result = await model.generateContent(prompt);
@@ -50,8 +46,9 @@ router.post('/wake-up', async (req, res) => {
       },
       data: {
         text: introText,
-        model_id: "eleven_turbo_v2_5", // Use newer Turbo 2.5
-        optimize_streaming_latency: 0 //max speed
+        model_id: "eleven_turbo_v2_5", 
+        // 0 = Max Speed (Lowest Latency)
+        optimize_streaming_latency: 0
       },
       responseType: 'arraybuffer'
     });
@@ -91,16 +88,13 @@ router.post('/talk-audio', upload.single('audio'), async (req, res) => {
     const userText = transcription.text;
     console.log(`2. User said: "${userText}"`);
 
-    // ✅ FIX 2: Gemini 2.5 Flash + Token Limit
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.5-flash",
-      generationConfig: { maxOutputTokens: 60 } 
-    });
+
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const prompt = `
       Roleplay: Protective father Jim. User said: "${userText}"
-      Task: Respond naturally. Speak like a real parent.
-      Keep it short (under 2 sentences) for speed.
+      Task: Respond naturally. Speak like a real parent. Preferably natural with only 1-2 sentences.
+      CRITICAL: ONLY write the spoken words. No *actions*.
     `;
 
     const geminiResult = await model.generateContent(prompt);
@@ -118,7 +112,8 @@ router.post('/talk-audio', upload.single('audio'), async (req, res) => {
       data: {
         text: dadResponse,
         model_id: "eleven_turbo_v2_5",
-        optimize_streaming_latency: 4 // Max Speed
+        // 4 = Max Speed (Lowest Latency)
+        optimize_streaming_latency: 4 
       },
       responseType: 'arraybuffer'
     });
@@ -129,7 +124,7 @@ router.post('/talk-audio', upload.single('audio'), async (req, res) => {
 
   } catch (error) {
     console.error('❌ Pipeline failed:', error.message);
-    if (error.response) console.error(error.response.data); // Print detailed API errors
+    if (error.response) console.error(error.response.data);
     res.status(500).json({ error: 'Processing failed' });
 
   } finally {
