@@ -25,7 +25,7 @@ router.post('/wake-up', async (req, res) => {
     console.log('🔔 Call connected. Waking up Dad...');
 
     // 1. Generate Natural Greeting
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
     const prompt = `
       Roleplay: You are a protective, caring father named Jim. 
       Your daughter just called you unexpectedly. You are worried but trying to stay calm.
