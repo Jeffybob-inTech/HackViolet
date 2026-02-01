@@ -1,7 +1,18 @@
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
-import { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Animated,
+  Easing,
+} from 'react-native';
+import { useState, useRef, useEffect } from 'react';
 import uuid from 'react-native-uuid';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import type { ReactNode } from 'react';
+
 
 
 type PasscodeAction =
@@ -17,27 +28,70 @@ type PasscodeRule = {
   };
   action: PasscodeAction;
 };
+function AnimatedBackground({ scrollY }: { scrollY: Animated.Value }) {
+  const float = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(float, {
+          toValue: 1,
+          duration: 14000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(float, {
+          toValue: 0,
+          duration: 14000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  const drift = float.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-60, 60],
+  });
+
+  const parallax = scrollY.interpolate({
+    inputRange: [0, 400],
+    outputRange: [0, -40],
+    extrapolate: 'clamp',
+  });
+  
+  return (
+    <>
+      <Animated.View
+        style={[
+          styles.aurora,
+          {
+            backgroundColor: '#6366F1',
+            transform: [{ translateX: drift }, { translateY: parallax }],
+          },
+        ]}
+      />
+      <Animated.View
+        style={[
+          styles.aurora,
+          {
+            backgroundColor: '#22D3EE',
+            bottom: -180,
+            right: -120,
+            transform: [{ translateX: drift }, { translateY: parallax }],
+          },
+        ]}
+      />
+    </>
+  );
+}
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const TRIGGER_KEYS = ['=', '−', '+', '0', '1', '2', '3'];
-const incrementCount = (rule: PasscodeRule, delta: number) => {
-  const next = Math.max(1, Math.min(9, rule.trigger.count + delta));
+  const scrollY = useRef(new Animated.Value(0)).current;
 
-  updateRule(rule.id, {
-    trigger: { ...rule.trigger, count: next },
-  });
-};
-
-  const cycleTriggerKey = (rule: PasscodeRule) => {
-  const idx = TRIGGER_KEYS.indexOf(rule.trigger.key);
-  const nextKey = TRIGGER_KEYS[(idx + 1) % TRIGGER_KEYS.length];
-
-  updateRule(rule.id, {
-    trigger: { ...rule.trigger, key: nextKey },
-  });
-};
-
+  const [stealth, setStealth] = useState(false);
   const [rules, setRules] = useState<PasscodeRule[]>([
     {
       id: String(uuid.v4()),
@@ -46,148 +100,118 @@ const incrementCount = (rule: PasscodeRule, delta: number) => {
     },
   ]);
 
-  const updateRule = (id: string, patch: Partial<PasscodeRule>) => {
-    setRules(r => r.map(rule => (rule.id === id ? { ...rule, ...patch } : rule)));
-  };
+  const addRule = () => {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-  const updateAction = (id: string, action: PasscodeAction) => {
-    setRules(r => r.map(rule => (rule.id === id ? { ...rule, action } : rule)));
-  };
-function ActionPill({
-  label,
-  active,
-  onPress,
-}: {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-}) {
+  setRules(r => [
+    ...r,
+    {
+      id: String(uuid.v4()),
+      trigger: { key: '=', count: 2 },
+      action: { type: 'none' },
+    },
+  ]);
+};
+
+
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      style={[styles.pill, active && styles.pillActive]}
+    <View style={styles.container}>
+      <AnimatedBackground scrollY={scrollY} />
+
+      <Animated.ScrollView
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
+        )}
+        scrollEventThrottle={16}
+        contentContainerStyle={{ paddingBottom: 80 }}
+      >
+        <Text style={styles.header}>Passcode Actions</Text>
+        <Text style={styles.sub}>Discreet triggers. Zero attention.</Text>
+
+        <TouchableOpacity onPress={() => router.push('/')}>
+          <Text style={styles.backText}>‹ Calculator</Text>
+        </TouchableOpacity>
+
+        {/* Stealth Mode */}
+        <TouchableOpacity
+          style={[styles.stealthToggle, stealth && styles.stealthActive]}
+          onPress={() => {
+            Haptics.selectionAsync();
+            setStealth(s => !s);
+          }}
+        >
+          <Text style={styles.stealthText}>
+            {stealth ? 'Stealth Mode ON' : 'Stealth Mode OFF'}
+          </Text>
+        </TouchableOpacity>
+
+        {rules.map((rule, i) => (
+          <AnimatedCard key={rule.id} index={i}>
+            <Text style={styles.preview}>
+              Press {rule.trigger.key} {rule.trigger.count}×
+            </Text>
+          </AnimatedCard>
+        ))}
+
+        <TouchableOpacity style={styles.add} onPress={addRule}>
+          <Text style={styles.addText}>＋ Add Passcode</Text>
+        </TouchableOpacity>
+      </Animated.ScrollView>
+
+      {stealth && <View style={styles.stealthOverlay} />}
+    </View>
+  );
+}
+function AnimatedCard({
+  children,
+  index,
+}: {
+  children: ReactNode;
+  index: number;
+}) {
+
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: 500,
+      delay: index * 80,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  return (
+    <Animated.View
+      style={[
+        styles.card,
+        {
+          opacity: anim,
+          transform: [
+            {
+              translateY: anim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [24, 0],
+              }),
+            },
+            {
+              scale: anim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.96, 1],
+              }),
+            },
+          ],
+        },
+      ]}
     >
-      <Text style={[styles.pillText, active && styles.pillTextActive]}>
-        {label}
-      </Text>
-    </TouchableOpacity>
+      <View style={styles.glow} />
+      {children}
+    </Animated.View>
   );
 }
 
-  const addRule = () => {
-    setRules(r => [
-      ...r,
-      {
-        id: String(uuid.v4()),
-        trigger: { key: '=', count: 2 },
-        action: { type: 'none' },
-      },
-    ]);
-  };
-
-  const removeRule = (id: string) => {
-    setRules(r => r.filter(rule => rule.id !== id));
-  };
-
-  return (
-  <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
-
-    <Text style={styles.header}>Passcode Actions</Text>
-    <Text style={styles.sub}>
-      Configure discreet input patterns that trigger actions.
-    </Text>
-    <TouchableOpacity
-  onPress={() => router.push("/")}
-  style={styles.backBtn}
-  activeOpacity={0.7}
->
-  <Text style={styles.backText}>‹ Calculator</Text>
-</TouchableOpacity>
-
-    {rules.map(rule => {
-      const actionLabel =
-        rule.action.type === 'ai_call'
-          ? 'Call AI Assistant'
-          : rule.action.type === 'text'
-          ? `Send text to ${rule.action.to}`
-          : 'No action';
-
-      return (
-        <View key={rule.id} style={styles.card}>
-          {/* Gradient Accent */}
-          <View style={styles.accent} />
-
-          <View style={styles.triggerBlock}>
-  {/* Key (tap to cycle) */}
-  <TouchableOpacity onPress={() => cycleTriggerKey(rule)}>
-    <Text style={styles.triggerKey}>{rule.trigger.key}</Text>
-  </TouchableOpacity>
-
-  {/* Count controls */}
-  <View style={styles.countControls}>
-    <TouchableOpacity
-      onPress={() => incrementCount(rule, -1)}
-      style={styles.countBtn}
-    >
-      <Text style={styles.countBtnText}>−</Text>
-    </TouchableOpacity>
-
-    <Text style={styles.triggerTimes}>{rule.trigger.count}</Text>
-
-    <TouchableOpacity
-      onPress={() => incrementCount(rule, +1)}
-      style={styles.countBtn}
-    >
-      <Text style={styles.countBtnText}>+</Text>
-    </TouchableOpacity>
-  </View>
-</View>
-
-
-          <Text style={styles.preview}>
-            When pressed {rule.trigger.count} times → {actionLabel}
-          </Text>
-
-          {/* Action Pills */}
-          <View style={styles.pills}>
-            <ActionPill
-              label="AI Assistant"
-              active={rule.action.type === 'ai_call'}
-              onPress={() => updateAction(rule.id, { type: 'ai_call' })}
-            />
-            <ActionPill
-              label="Send Text"
-              active={rule.action.type === 'text'}
-              onPress={() =>
-                updateAction(rule.id, {
-                  type: 'text',
-                  to: '123-456-7890',
-                  message: 'Emergency check-in',
-                })
-              }
-            />
-            <ActionPill
-              label="None"
-              active={rule.action.type === 'none'}
-              onPress={() => updateAction(rule.id, { type: 'none' })}
-            />
-          </View>
-
-          {/* Delete */}
-          <TouchableOpacity style={styles.delete} onPress={() => removeRule(rule.id)}>
-            <Text style={styles.deleteText}>Remove</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    })}
-
-    <TouchableOpacity style={styles.add} onPress={addRule}>
-      <Text style={styles.addText}>＋ Add Passcode</Text>
-    </TouchableOpacity>
-  </ScrollView>
-);
-
-}
 
 /* ------------------ */
 /* Action Row */
@@ -227,6 +251,41 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginBottom: 6,
   },
+aurora: {
+  position: 'absolute',
+  width: 340,
+  height: 340,
+  borderRadius: 170,
+  opacity: 0.18,
+  top: -120,
+  left: -80,
+},
+
+stealthToggle: {
+  marginVertical: 12,
+  padding: 12,
+  borderRadius: 14,
+  backgroundColor: '#111827',
+},
+
+stealthActive: {
+  backgroundColor: '#020617',
+  borderWidth: 1,
+  borderColor: '#22D3EE',
+},
+
+stealthText: {
+  color: '#E5E7EB',
+  textAlign: 'center',
+  fontWeight: '500',
+},
+
+stealthOverlay: {
+  ...StyleSheet.absoluteFillObject,
+  backgroundColor: '#000',
+  opacity: 0.15,
+  pointerEvents: 'none',
+},
 
   sub: {
     color: '#9CA3AF',
@@ -344,6 +403,16 @@ backText: {
     color: '#F87171',
     fontSize: 13,
   },
+  glow: {
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  borderRadius: 24,
+  backgroundColor: '#6366F1',
+  opacity: 0.12,
+},
 
   add: {
     marginTop: 12,
