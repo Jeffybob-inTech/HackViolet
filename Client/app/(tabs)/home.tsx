@@ -28,6 +28,24 @@ type Member = {
 };
 
 export default function HomeScreen() {
+  const pingAnim = useRef(new Animated.Value(0)).current;
+
+function triggerPing() {
+  pingAnim.setValue(0);
+  Animated.sequence([
+    Animated.timing(pingAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }),
+    Animated.timing(pingAnim, {
+      toValue: 0,
+      duration: 600,
+      useNativeDriver: true,
+    }),
+  ]).start();
+}
+
 const deviceToken = "...";
 const circleId = "...";
 const [members, setMembers] = useState<Member[]>([
@@ -43,7 +61,7 @@ const [members, setMembers] = useState<Member[]>([
 
 async function sendPing() {
   try {
-    const res = await fetch("https://YOUR_API_URL/v1/ping", {
+    const res = await fetch("http://192.168.1.23:8080/v1/ping", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -142,6 +160,15 @@ useEffect(() => {
 
   return () => sub.remove();
 }, []);
+useEffect(() => {
+  const sub = Notifications.addNotificationReceivedListener(n => {
+    if (n.request.content.data?.type === "PING") {
+      triggerPing();
+    }
+  });
+
+  return () => sub.remove();
+}, []);
 
 
   return (
@@ -153,6 +180,23 @@ useEffect(() => {
           <Text style={styles.settings}>Settings</Text>
         </TouchableOpacity>
       </View>
+    <Animated.View
+  style={{
+    opacity: pingAnim,
+    transform: [{ scale: pingAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.9, 1.05],
+    }) }],
+    backgroundColor: "#ff4444",
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+  }}
+>
+  <Text style={{ color: "white", fontWeight: "700" }}>
+    🚨 Incoming Ping
+  </Text>
+</Animated.View>
 
       {/* Gradient Hero */}
       <LinearGradient

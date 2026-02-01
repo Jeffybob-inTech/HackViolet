@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-  "dev": "tsx watch server.ts",
-  "build": "tsc",
-  "start": "node server.js"
+    "dev": "tsx watch server.ts",
+    "build": "tsc",
+    "start": "node server.js"
   },
   "dependencies": {
     "cors": "^2.8.6",
@@ -15,6 +15,7 @@
     "express-rate-limit": "^7.5.1",
     "helmet": "^7.2.0",
     "jsonwebtoken": "^9.0.3",
+    "node-fetch": "^3.3.2",
     "pg": "^8.18.0",
     "pino": "^10.3.0",
     "pino-pretty": "^13.1.3",

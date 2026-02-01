@@ -1,33 +1,22 @@
-import { Expo } from "expo-server-sdk";
+import fetch from "node-fetch";
 
-const expo = new Expo({
-  accessToken: process.env.EXPO_ACCESS_TOKEN || undefined
-});
-
-export async function sendPush(to: string, title: string, body: string, data: Record<string, any> = {}) {
-  if (!to) return;
-
-  if (!Expo.isExpoPushToken(to)) {
-    // Don’t crash; just ignore bad tokens
-    return;
-  }
-
-  const messages = [{
-    to,
-    sound: "default",
-    title,
-    body,
-    data,
-    priority: "high" as const
-  }];
-
-  // Chunk + send
-  const chunks = expo.chunkPushNotifications(messages);
-  for (const chunk of chunks) {
-    try {
-      await expo.sendPushNotificationsAsync(chunk);
-    } catch {
-      // Intentionally swallow — you’ll add logging later
-    }
-  }
+export async function sendPush(
+  pushToken: string,
+  title: string,
+  body: string,
+  data: Record<string, any>
+) {
+  await fetch("http://192.168.1.23:8080/v1/ping", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      to: pushToken,
+      sound: "default",
+      title,
+      body,
+      data, // THIS IS CRITICAL
+    }),
+  });
 }
