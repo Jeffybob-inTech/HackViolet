@@ -70,7 +70,7 @@ app.post("/location", async (req, res) => {
 
 app.post("/call", async (req, res) => {
   const { deviceId } = req.body || {};
-
+  console.log("user called")
   if (!deviceId) {
     return res.status(400).json({ error: "bad_request" });
   }

@@ -23,7 +23,7 @@ export default function CallScreen() {
   const RINGTONE_URI = 'https://www.soundjay.com/phone/phone-ringing-1.mp3'; 
 
   // ⚠️ REPLACE WITH YOUR SERVER IP
-  const SERVER_URL = 'http://YOUR_SERVER_IP_HERE:3000'; 
+  const SERVER_URL = 'https://hackviolet.onrender.com'; 
 
   // --- 1. PERMISSIONS ---
   useFocusEffect(
