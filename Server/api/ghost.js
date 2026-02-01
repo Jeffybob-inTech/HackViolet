@@ -25,7 +25,7 @@ router.post('/wake-up', async (req, res) => {
   try {
     console.log('🔔 Call connected. Waking up Dad...');
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
     const prompt = `
       Roleplay: You are a protective father named Jim. 
       Your daughter just called. Answer the phone naturally.
