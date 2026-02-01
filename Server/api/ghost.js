@@ -23,11 +23,11 @@ router.post('/wake-up', async (req, res) => {
   try {
     console.log('🔔 Call connected. Waking up Dad...');
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     const prompt = `
       Roleplay: You are a protective father named Jim. 
-      Your daughter just called. Answer the phone naturally. Preferably only 1-2 sentences.
+      Your daughter just called. Answer the phone naturally. Preferably less than 20 words.
       CRITICAL: ONLY write the spoken words. No *actions*.
     `;
 
@@ -46,9 +46,8 @@ router.post('/wake-up', async (req, res) => {
       },
       data: {
         text: introText,
-        model_id: "eleven_turbo_v2_5", 
+        model_id: "eleven_flash_v2_5", 
         // 0 = Max Speed (Lowest Latency)
-        optimize_streaming_latency: 0
       },
       responseType: 'arraybuffer'
     });
@@ -89,11 +88,11 @@ router.post('/talk-audio', upload.single('audio'), async (req, res) => {
     console.log(`2. User said: "${userText}"`);
 
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     const prompt = `
       Roleplay: Protective father Jim. User said: "${userText}"
-      Task: Respond naturally. Speak like a real parent. Preferably natural with only 1-2 sentences.
+      Task: Respond naturally. Speak like a real parent. Preferably less than 20 words.
       CRITICAL: ONLY write the spoken words. No *actions*.
     `;
 
@@ -111,9 +110,8 @@ router.post('/talk-audio', upload.single('audio'), async (req, res) => {
       },
       data: {
         text: dadResponse,
-        model_id: "eleven_turbo_v2_5",
+        model_id: "eleven_flash_v2_5",
         //STAY 0 = Max Speed (Lowest Latency)
-        optimize_streaming_latency: 0
       },
       responseType: 'arraybuffer'
     });
