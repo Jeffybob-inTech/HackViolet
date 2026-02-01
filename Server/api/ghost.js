@@ -113,7 +113,7 @@ router.post('/talk-audio', upload.single('audio'), async (req, res) => {
     const userText = transcription.text;
     console.log(`2. User said: "${userText}"`);
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
     const prompt = `
       Roleplay: Protective father Jim. User said: "${userText}"
       Task: Respond naturally. Speak like a real parent.
