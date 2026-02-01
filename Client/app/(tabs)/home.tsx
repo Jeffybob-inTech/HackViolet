@@ -17,6 +17,14 @@ Notifications.setNotificationHandler({
     shouldShowList: true,
   }),
 });
+type PingPayload = {
+  type: "PING";
+  lat: number;
+  lng: number;
+  accuracy?: number;
+  from?: string;
+};
+
 
 
 type Member = {
@@ -36,7 +44,7 @@ function triggerPing() {
   Animated.sequence([
     Animated.timing(pingAnim, {
       toValue: 1,
-      duration: 300,
+      duration: 250,
       useNativeDriver: true,
     }),
     Animated.timing(pingAnim, {
@@ -46,6 +54,33 @@ function triggerPing() {
     }),
   ]).start();
 }
+
+useEffect(() => {
+  const sub = Notifications.addNotificationReceivedListener(notification => {
+    const data = notification.request.content.data as Partial<PingPayload>;
+
+    if (data?.type === "PING" && typeof data.lat === "number" && typeof data.lng === "number") {
+      triggerPing();
+      handlePing(data.lat, data.lng);
+    }
+  });
+
+  return () => sub.remove();
+}, []);
+
+
+useEffect(() => {
+  const sub = Notifications.addNotificationResponseReceivedListener(response => {
+    const data = response.notification.request.content.data as Partial<PingPayload>;
+
+    if (data?.type === "PING" && typeof data.lat === "number" && typeof data.lng === "number") {
+      triggerPing();
+      handlePing(data.lat, data.lng);
+    }
+  });
+
+  return () => sub.remove();
+}, []);
 
 
 const [members, setMembers] = useState<Member[]>([
@@ -177,12 +212,14 @@ useEffect(() => {
     <Animated.View
   style={{
     opacity: pingAnim,
-    transform: [{ scale: pingAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0.9, 1.05],
-    }) }],
+    transform: [{
+      scale: pingAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.9, 1.05],
+      }),
+    }],
     backgroundColor: "#ff4444",
-    padding: 16,
+    padding: 14,
     borderRadius: 12,
     marginBottom: 12,
   }}
@@ -191,6 +228,7 @@ useEffect(() => {
     🚨 Incoming Ping
   </Text>
 </Animated.View>
+
 
       {/* Gradient Hero */}
       <LinearGradient

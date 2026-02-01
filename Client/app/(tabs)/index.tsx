@@ -1,16 +1,60 @@
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Notifications from "expo-notifications";
+import { useEffect } from "react";
+
+
+
+
+const SERVER_URL = "https://hackviolet.onrender.com";
+
 
 
 export default function CalculatorScreen() {
   const router = useRouter();
+
+  const [myDeviceId, setMyDeviceId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // read existing deviceId
+    AsyncStorage.getItem("deviceId").then(id => {
+      console.log("Loaded deviceId:", id);
+      setMyDeviceId(id);
+    });
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      let deviceId = await AsyncStorage.getItem("deviceId");
+
+      if (!deviceId) {
+        const token = (await Notifications.getExpoPushTokenAsync()).data;
+
+        const res = await fetch(`${SERVER_URL}/devices/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pushToken: token }),
+        });
+
+        const json = await res.json();
+        console.log("Register response:", json);
+
+        if (json.deviceId) {
+          await AsyncStorage.setItem("deviceId", json.deviceId);
+          setMyDeviceId(json.deviceId); // 🔑 THIS WAS ALSO MISSING
+        }
+      }
+    })();
+  }, []);
   const [minusStreak, setMinusStreak] = useState(0);
   const [additionStreak, setAdditionStreak] = useState(0);
   const [display, setDisplay] = useState('0');
   const [expression, setExpression] = useState('');
   const [equalsStreak, setEqualsStreak] = useState(0);
   const [activeOp, setActiveOp] = useState<string | null>(null);
+  
 
   const OP_MAP: Record<string, string> = {
   '÷': '/',
@@ -18,6 +62,15 @@ export default function CalculatorScreen() {
   '−': '-',
   '+': '+',
   };
+  async function sendPing() {
+  if (!myDeviceId) return;
+
+  await fetch("https://hackviolet.onrender.com/call", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ deviceId: myDeviceId }),
+  });
+}
 
   const press = (val: string) => {
   // Clear
@@ -73,7 +126,6 @@ if (val === '⌫') {
     setActiveOp(null);
     return;
   }
-
   // Operator
   // Operator
 if (OP_MAP[val]) {
@@ -99,7 +151,7 @@ if (OP_MAP[val]) {
       const next = prev + 1;
       if (next >= 3) {
         setAdditionStreak(0);
-        sendPing()
+        sendPing();
         router.push('/home');
         return 0;
       }
@@ -149,24 +201,7 @@ if (OP_MAP[val]) {
 
 
 type ButtonType = 'number' | 'action' | 'operator';
-async function sendPing() {
-  try {
-    const res = await fetch("https://hackviolet.onrender.com/ping", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "PING",
-        from: "calculator"
-      }),
-    });
 
-    if (!res.ok) throw new Error("Ping failed");
-
-    Alert.alert("Ping sent");
-  } catch (e) {
-    Alert.alert("Error", "Could not send ping");
-  }
-}
 
 const Button = ({
   label,
