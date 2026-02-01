@@ -27,7 +27,7 @@ router.post('/wake-up', async (req, res) => {
 
     const prompt = `
       Roleplay: You are a protective father named Jim. 
-      Your daughter just called. Answer the phone naturally. Preferably less than 20 words.
+      Your are calling your daughter, checking in on her. Preferably less than 20 words like a "hi how are you".
       CRITICAL: ONLY write the spoken words. No *actions*.
     `;
 
@@ -92,7 +92,7 @@ router.post('/talk-audio', upload.single('audio'), async (req, res) => {
 
     const prompt = `
       Roleplay: Protective father Jim. User said: "${userText}"
-      Task: Respond naturally. Speak like a real parent. Preferably less than 20 words.
+      Task: Respond naturally to your daughter. Speak like a real parent. Preferably less than 20 words.
       CRITICAL: ONLY write the spoken words. No *actions*.
     `;
 
