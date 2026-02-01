@@ -3,40 +3,41 @@ const router = express.Router();
 const multer = require('multer');
 const fs = require('fs');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const Groq = require('groq-sdk'); 
+const Groq = require('groq-sdk');
 const axios = require('axios');
 
+// Configure Multer for temp storage
 const upload = multer({ dest: 'uploads/' });
 
-// Initialize APIs
+// --- CONFIGURATION ---
+// ⚠️ If you want your custom voice, paste the ID here.
+// Currently set to "Brian" (Standard American Male) as a fallback.
+const VOICE_ID = 'nPczCjzI2devNBz1zQrb'; 
+
+// Initialize Clients (Using .env variables from server.js)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
 const ELEVEN_LABS_API_KEY = process.env.ELEVEN_LABS_API_KEY;
-const VOICE_ID = 'nPczCjzI2devNBz1zQrb'; // "Brian"
 
-// --- ROUTE 1: WAKE UP (The Intro) ---
-// Triggered when call connects. AI speaks first.
+// --- ROUTE 1: WAKE UP ---
 router.post('/wake-up', async (req, res) => {
   try {
-    console.log('Call connected. Waking up Dad...');
+    console.log('🔔 Call connected. Waking up Dad...');
 
-    // 1. Generate Greeting Text
-    const model = genAI.getGenerativeModel({ model: "gemini-pro"});
+    // 1. Generate Natural Greeting
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
     const prompt = `
-      Roleplay: You are an overprotective father named Jim. 
-      Your daughter just picked up the phone. She is in a potentially unsafe situation.
-      
-      Task: Say a short, protective greeting. 
-      Examples: "Hi honey, I'm here." or "I've got you on the map."
-      Constraint: Keep it under 10 words.
+      Roleplay: You are a protective, caring father named Jim. 
+      Your daughter just called you unexpectedly. You are worried but trying to stay calm.
+      Task: Answer the phone naturally. Ask if she is okay or where she is.
+      Style: Conversational, comforting, realistic. Not too short.
     `;
-    
+
     const result = await model.generateContent(prompt);
     const introText = result.response.text();
-    console.log(`Dad says intro: "${introText}"`);
+    console.log(`🗣️ Dad says: "${introText}"`);
 
-    // 2. Generate Audio (Turbo)
+    // 2. Generate Audio
     const audioResponse = await axios({
       method: 'post',
       url: `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream`,
@@ -47,59 +48,61 @@ router.post('/wake-up', async (req, res) => {
       },
       data: {
         text: introText,
-        model_id: "eleven_turbo_v2", 
-        voice_settings: { stability: 0.5, similarity_boost: 0.8 },
+        model_id: "eleven_turbo_v2",
         optimize_streaming_latency: 2
       },
       responseType: 'arraybuffer'
     });
 
-    // 3. Send MP3
     res.set('Content-Type', 'audio/mpeg');
     res.send(audioResponse.data);
 
   } catch (error) {
-    console.error('Wake-up failed:', error.message);
+    console.error('❌ Wake-up failed:', error.message);
     res.status(500).json({ error: 'Failed to wake up' });
   }
 });
 
-// --- ROUTE 2: TALK AUDIO (The Conversation) ---
-// Triggered when you finish speaking.
+// --- ROUTE 2: TALK AUDIO ---
 router.post('/talk-audio', upload.single('audio'), async (req, res) => {
   const startTime = Date.now();
+  let newPath = null; // Defined here so 'finally' can see it
+
   try {
-    const audioFile = req.file; 
+    const audioFile = req.file;
     if (!audioFile) return res.status(400).json({ error: 'No audio sent' });
+
+    // --- FIX: RENAME FILE FOR GROQ ---
+    newPath = audioFile.path + '.m4a';
+    fs.renameSync(audioFile.path, newPath);
 
     console.log('1. Audio received. Sending to Groq...');
 
-    // --- STEP 1: TRANSCRIPTION (Groq Whisper) ---
+    // 1. Hearing (Groq Whisper)
     const transcription = await groq.audio.transcriptions.create({
-      file: fs.createReadStream(audioFile.path),
+      file: fs.createReadStream(newPath),
       model: 'whisper-large-v3',
       response_format: 'json',
       language: 'en',
     });
-    
+
     const userText = transcription.text;
-    console.log(`2. User said (${Date.now() - startTime}ms): "${userText}"`);
+    console.log(`2. User said: "${userText}"`);
 
-    fs.unlinkSync(audioFile.path); // Cleanup temp file
-
-    // --- STEP 2: INTELLIGENCE (Gemini) ---
-    const model = genAI.getGenerativeModel({ model: "gemini-pro"});
+    // 2. Thinking (Gemini 1.5 Flash)
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
     const prompt = `
-      Roleplay: You are an overprotective father named Jim. 
-      User said: "${userText}"
-      Respond in LESS than 15 words. Be protective. No emojis.
+      Roleplay: You are a protective father named Jim. 
+      The user (your daughter) just said: "${userText}"
+      Task: Respond naturally. If she sounds scared, be reassuring.
+      Style: Speak like a real parent. Conversational (1-2 sentences).
     `;
-    
+
     const geminiResult = await model.generateContent(prompt);
     const dadResponse = geminiResult.response.text();
     console.log(`3. Gemini replied: "${dadResponse}"`);
 
-    // --- STEP 3: VOICE GENERATION (ElevenLabs Turbo) ---
+    // 3. Speaking (ElevenLabs)
     const audioResponse = await axios({
       method: 'post',
       url: `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream`,
@@ -111,20 +114,30 @@ router.post('/talk-audio', upload.single('audio'), async (req, res) => {
       data: {
         text: dadResponse,
         model_id: "eleven_turbo_v2",
-        voice_settings: { stability: 0.5, similarity_boost: 0.8 },
         optimize_streaming_latency: 2
       },
       responseType: 'arraybuffer'
     });
 
-    console.log(`4. Audio generated. Sending back (Total: ${Date.now() - startTime}ms)`);
-
+    console.log(`4. Audio generated (Latency: ${Date.now() - startTime}ms)`);
     res.set('Content-Type', 'audio/mpeg');
     res.send(audioResponse.data);
 
   } catch (error) {
-    console.error('Error in pipeline:', error.message);
+    console.error('❌ Pipeline failed:', error.message);
     res.status(500).json({ error: 'Processing failed' });
+
+  } finally {
+    // --- SAFETY CHECK ---
+    // Always delete the temp file from the server, even if it crashed.
+    if (newPath && fs.existsSync(newPath)) {
+      try {
+        fs.unlinkSync(newPath);
+        console.log('🧹 Server Cleanup: Temp audio deleted.');
+      } catch (e) {
+        console.error('Failed to delete temp file:', e);
+      }
+    }
   }
 });
 
