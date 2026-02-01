@@ -6,7 +6,7 @@ import * as Notifications from "expo-notifications";
 import { useEffect } from "react";
 import Constants from "expo-constants";
 import * as Location from "expo-location";
-
+import { handlePasscodeKeyPress } from "./settings"; // adjust relative path
 
 
 
@@ -80,6 +80,44 @@ async function sendPing() {
   });
 }
 
+async function onCalculatorKeyPress(key: string) {
+  // Your existing calculator logic here...
+
+  const username = (await AsyncStorage.getItem("hv:username")) || "";
+  const fired = await handlePasscodeKeyPress({ pressedKey: key, username });
+
+  if (!fired) return;
+
+  if (fired.kind === "text") {
+    // TODO: POST to server to send message/push notification
+    // await fetch(`${SERVER_URL}/send-text`, { method:"POST", headers:{...}, body: JSON.stringify(fired) })
+    console.log("SEND TEXT", fired);
+  } else {
+    // TODO: start AI call flow
+    console.log("START AI CALL", fired);
+  }
+}
+async function handlePress(key: string) {
+  // 1️⃣ Passcode engine FIRST
+  const username = (await AsyncStorage.getItem("hv:username")) || "";
+  const fired = await handlePasscodeKeyPress({
+    pressedKey: key,
+    username,
+  });
+
+  if (fired) {
+    if (fired.kind === "text") {
+      console.log("SEND TEXT", fired);
+      // TODO: POST to server
+    } else {
+      console.log("START AI CALL", fired);
+      router.push("/call"); // or however AI call works
+    }
+  }
+
+  // 2️⃣ Then normal calculator behavior
+  press(key);
+}
 
   const press = (val: string) => {
   // Clear
@@ -226,7 +264,7 @@ const Button = ({
   return (
     <TouchableOpacity
       activeOpacity={0.85}
-      onPress={() => press(label)}
+      onPress={() => handlePress(label)}
       style={[
         styles.button,
         wide && styles.wide,

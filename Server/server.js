@@ -121,8 +121,8 @@ app.post("/messages", async (req, res) => {
   // city source of truth:
   // - if you later add `city` on locations, it'll use it
   // - otherwise it falls back to "Unknown"
-  const city =
-    (loc && typeof loc.city === "string" && loc.city.trim()) ? loc.city.trim() : "Unknown";
+  const city = deviceId
+    //(loc && typeof loc.city === "string" && loc.city.trim()) ? loc.city.trim() : "Unknown";
 
   const { data, error } = await supabase
     .from("group_messages")

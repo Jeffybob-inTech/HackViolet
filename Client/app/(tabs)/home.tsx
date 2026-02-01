@@ -257,43 +257,6 @@ useEffect(() => {
 }, []);
 
 
-async function sendMessage() {
-  setMsgErr(null);
-
-  if (!myDeviceId) {
-    //setMsgErr("Device not ready yet");
-    //return;
-  }
-
-  const cleaned = msgText.trim();
-  if (!cleaned) return;
-
-  setSending(true);
-  try {
-    const res = await fetch(`${SERVER_URL}/messages`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        deviceId: 1,
-        text: cleaned,
-      }),
-    });
-
-    if (!res.ok) {
-      setMsgErr(await res.text());
-      return;
-    }
-
-    setMsgText("");
-    await loadMessages();
-  } catch {
-    setMsgErr("Network request failed");
-  } finally {
-    setSending(false);
-  }
-}
-
-
 
 useEffect(() => {
   const sub = Notifications.addNotificationResponseReceivedListener(response => {
@@ -404,7 +367,52 @@ async function sendPing() {
   const router = useRouter();
   const [phone, setPhone] = useState('');
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [username, setUsername] = useState<string | null>(null);
+const [stealth, setStealth] = useState(false);
 
+useEffect(() => {
+  (async () => {
+    const u = await AsyncStorage.getItem("hv:username");
+    const s = await AsyncStorage.getItem("hv:stealth");
+    setUsername(u);
+    setStealth(s === "true");
+  })();
+}, []);
+async function sendMessage() {
+  setMsgErr(null);
+
+  if (!myDeviceId) {
+    //setMsgErr("Device not ready yet");
+    //return;
+  }
+
+  const cleaned = msgText.trim();
+  if (!cleaned) return;
+
+  setSending(true);
+  try {
+    const res = await fetch(`${SERVER_URL}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: username,
+        text: cleaned,
+      }),
+    });
+
+    if (!res.ok) {
+      setMsgErr(await res.text());
+      return;
+    }
+
+    setMsgText("");
+    await loadMessages();
+  } catch {
+    setMsgErr("Network request failed");
+  } finally {
+    setSending(false);
+  }
+}
   
 
   const addMember = () => {
@@ -498,9 +506,15 @@ useEffect(() => {
       <AnimatedBackground />
       <View style={styles.headerRow}>
         <Text style={styles.header}>Home</Text>
-        <TouchableOpacity onPress={() => router.push('/')}>
-          <Text style={styles.settings}>Calculator</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", gap: 16 }}>
+  <TouchableOpacity onPress={() => router.push('/settings')}>
+    <Text style={styles.settings}>Settings</Text>
+  </TouchableOpacity>
+  <TouchableOpacity onPress={() => router.push('/')}>
+    <Text style={styles.settings}>Calculator</Text>
+  </TouchableOpacity>
+</View>
+
       </View>
     <Animated.View
   style={{
@@ -517,9 +531,27 @@ useEffect(() => {
     marginBottom: 12,
   }}
 >
-  <Text style={{ color: "white", fontWeight: "700" }}>
-    🚨 Incoming Ping
-  </Text>
+  {!stealth && (
+  <Animated.View
+    style={{
+      opacity: pingAnim,
+      transform: [{
+        scale: pingAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.9, 1.05],
+        }),
+      }],
+      backgroundColor: "#ff4444",
+      padding: 14,
+      borderRadius: 12,
+      marginBottom: 12,
+    }}
+  >
+    <Text style={{ color: "white", fontWeight: "700" }}>
+      🚨 Incoming Ping
+    </Text>
+  </Animated.View>
+)}
 </Animated.View>
 
 
@@ -560,9 +592,11 @@ useEffect(() => {
   <View style={styles.chatList}>
     <ScrollView>
       {messages.slice().reverse().map(m => {
-        const label = `${m.city} user`;
+        
         const mine = myDeviceId != null && m.device_id === myDeviceId;
-
+const label = mine
+  ? username ?? "You"
+  : m.city ?? "Unknown";
         return (
           <View key={m.id} style={[styles.chatBubble, mine ? styles.chatMine : styles.chatOther]}>
             <Text style={styles.chatMeta}>{label}:</Text>
