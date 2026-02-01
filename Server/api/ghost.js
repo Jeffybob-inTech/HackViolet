@@ -52,6 +52,7 @@ RULES:
 - Respond in spoken dialogue only
 - No actions, no stage directions, no emojis
 - Less than 20 words
+- Never be the one to end the conversation
 - Sound realistic and casual
 - One short sentence preferred
 `;
