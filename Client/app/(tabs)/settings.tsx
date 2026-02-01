@@ -10,6 +10,13 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  TouchableWithoutFeedback,
+} from "react-native";
+
 import uuid from 'react-native-uuid';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -325,16 +332,24 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <AnimatedBackground scrollY={scrollY} />
-
+    <KeyboardAvoidingView
+    style={{ flex: 1 }}
+  behavior={Platform.OS === "ios" ? "padding" : "height"}
+  keyboardVerticalOffset={0}
+  >
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <View style={styles.container}>
+        <AnimatedBackground scrollY={scrollY} />
       <Animated.ScrollView
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
-          useNativeDriver: true,
-        })}
-        scrollEventThrottle={16}
-        contentContainerStyle={{ paddingBottom: 80 }}
-      >
+  keyboardShouldPersistTaps="handled"
+  onScroll={Animated.event(
+    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+    { useNativeDriver: true }
+  )}
+  scrollEventThrottle={16}
+  contentContainerStyle={{ paddingBottom: 120 }}
+>
+
         <Text style={styles.header}>Passcode Actions</Text>
         <Text style={styles.sub}>Configure triggers that silently do something useful.</Text>
 
@@ -382,7 +397,7 @@ export default function SettingsScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.label}>Trigger Key</Text>
                 <View style={styles.keyRow}>
-                  {['=', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map(k => (
+                  {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(k => (
                     <Pill
                       key={k}
                       label={k}
@@ -541,6 +556,8 @@ export default function SettingsScreen() {
 
       {stealth && <View style={styles.stealthOverlay} />}
     </View>
+    </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 }
 
