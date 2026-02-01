@@ -112,8 +112,8 @@ router.post('/talk-audio', upload.single('audio'), async (req, res) => {
       data: {
         text: dadResponse,
         model_id: "eleven_turbo_v2_5",
-        // 4 = Max Speed (Lowest Latency)
-        optimize_streaming_latency: 4 
+        //STAY 0 = Max Speed (Lowest Latency)
+        optimize_streaming_latency: 0
       },
       responseType: 'arraybuffer'
     });
