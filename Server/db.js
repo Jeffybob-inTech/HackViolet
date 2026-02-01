@@ -1,16 +1,12 @@
 const { Pool } = require("pg");
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-
-  // REQUIRED for Render / Supabase / Neon / Railway
+  connectionString: process.env.DATABASE_URL + "?sslmode=require",
   ssl: {
     rejectUnauthorized: false,
   },
-
-  // Fail fast instead of hanging forever
-  connectionTimeoutMillis: 5_000,
-  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 5000,
+  idleTimeoutMillis: 30000,
   max: 5,
 });
 
