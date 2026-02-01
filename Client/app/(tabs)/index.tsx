@@ -1,16 +1,49 @@
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Notifications from "expo-notifications";
+import { useEffect } from "react";
+import Constants from "expo-constants";
+import * as Location from "expo-location";
+
+
+
+
+
+
+const SERVER_URL = "https://hackviolet.onrender.com";
+
 
 
 export default function CalculatorScreen() {
   const router = useRouter();
+  /*const token = (
+  await Notifications.getExpoPushTokenAsync({
+    projectId: Constants.expoConfig?.extra?.eas?.projectId
+  })
+).data;*/
+const [myDeviceId, setMyDeviceId] = useState<string | null>(null);
+
+useEffect(() => {
+  AsyncStorage.getItem("deviceId").then(setMyDeviceId);
+}, []);
+useEffect(() => {
+  (async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") {
+      console.warn("Location permission denied");
+    }
+  })();
+}, []);
+
   const [minusStreak, setMinusStreak] = useState(0);
   const [additionStreak, setAdditionStreak] = useState(0);
   const [display, setDisplay] = useState('0');
   const [expression, setExpression] = useState('');
   const [equalsStreak, setEqualsStreak] = useState(0);
   const [activeOp, setActiveOp] = useState<string | null>(null);
+  
 
   const OP_MAP: Record<string, string> = {
   '÷': '/',
@@ -18,6 +51,35 @@ export default function CalculatorScreen() {
   '−': '-',
   '+': '+',
   };
+async function sendPing() {
+  if (!myDeviceId) return;
+
+  await updateLocation(myDeviceId);
+
+  await fetch(`${SERVER_URL}/call`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ deviceId: myDeviceId }),
+  });
+}
+
+  async function updateLocation(deviceId: string) {
+  const { coords } = await Location.getCurrentPositionAsync({
+    accuracy: Location.Accuracy.Highest,
+  });
+
+  await fetch("https://hackviolet.onrender.com/location", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      deviceId,
+      lat: coords.latitude,
+      lng: coords.longitude,
+      accuracy: coords.accuracy,
+    }),
+  });
+}
+
 
   const press = (val: string) => {
   // Clear
@@ -73,7 +135,6 @@ if (val === '⌫') {
     setActiveOp(null);
     return;
   }
-
   // Operator
   // Operator
 if (OP_MAP[val]) {
@@ -99,7 +160,7 @@ if (OP_MAP[val]) {
       const next = prev + 1;
       if (next >= 3) {
         setAdditionStreak(0);
-        sendPing()
+        sendPing();
         router.push('/home');
         return 0;
       }
@@ -149,24 +210,7 @@ if (OP_MAP[val]) {
 
 
 type ButtonType = 'number' | 'action' | 'operator';
-async function sendPing() {
-  try {
-    const res = await fetch("http://192.168.1.23:8080/v1/ping", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "PING",
-        from: "calculator"
-      }),
-    });
 
-    if (!res.ok) throw new Error("Ping failed");
-
-    Alert.alert("Ping sent");
-  } catch (e) {
-    Alert.alert("Error", "Could not send ping");
-  }
-}
 
 const Button = ({
   label,

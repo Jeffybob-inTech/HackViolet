@@ -23,7 +23,7 @@ export default function CallScreen() {
   const RINGTONE_URI = 'https://www.soundjay.com/phone/phone-ringing-1.mp3'; 
 
   // ⚠️ REPLACE WITH YOUR SERVER IP
-  const SERVER_URL = 'http://YOUR_SERVER_IP_HERE:3000'; 
+  const SERVER_URL = 'https://hackviolet.onrender.com'; 
 
   // --- 1. PERMISSIONS ---
   useFocusEffect(
@@ -181,6 +181,9 @@ export default function CallScreen() {
     }, [callState])
   );
 
+
+
+
   const stopRinging = async () => {
     if (soundRef.current) {
       try { await soundRef.current.stopAsync(); await soundRef.current.unloadAsync(); } catch (e) {}
@@ -196,7 +199,6 @@ export default function CallScreen() {
     await stopRinging();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setCallState('CONNECTED');
-    
     // TRIGGER THE REAL AI GREETING
     wakeUpDad(); 
   };
