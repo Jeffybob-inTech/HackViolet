@@ -5,6 +5,7 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+const { supabase } = require("./supabase");
 
 const { q } = require("./db");
 const { sendPush } = require("./push");
