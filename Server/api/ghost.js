@@ -11,12 +11,18 @@ const upload = multer({ dest: 'uploads/' });
 
 // --- CONFIGURATION ---
 // Using the ID from your working test file
-const VOICE_ID = 'WzpxTcpqXE1YZwSZOldz'; 
+//const VOICE_ID = 'WzpxTcpqXE1YZwSZOldz'; 
 
 // Initialize Clients
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const ELEVEN_LABS_API_KEY = process.env.ELEVEN_LABS_API_KEY;
+// --- VOICE MAP (LOCKED) ---
+const VOICE_BY_PERSONA = {
+  Mom: "bze4nMV54zvNbyVWgS2p",
+  Dad: "WzpxTcpqXE1YZwSZOldz",
+  Friend: "tLgq4zzCK7t30VvheSvD",
+};
 
 // --- ROUTE 1: WAKE UP ---
 router.post('/wake-up', async (req, res) => {
@@ -30,10 +36,13 @@ router.post('/wake-up', async (req, res) => {
     });
 
     // ---- SAFETY & FALLBACKS ----
-    const safePersona =
-      typeof persona === "string" && persona.trim()
-        ? persona.trim().slice(0, 40)
-        : "protective father named Jim";
+    const allowedPersonas = Object.keys(VOICE_BY_PERSONA);
+
+const safePersona = allowedPersonas.includes(persona)
+  ? persona
+  : "Dad";
+const VOICE_ID = VOICE_BY_PERSONA[safePersona];
+
 
     const userPrompt =
       typeof prompt === "string" && prompt.trim()

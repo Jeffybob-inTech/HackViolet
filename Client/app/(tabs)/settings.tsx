@@ -44,9 +44,11 @@ type TextActionConfig = {
 };
 
 type AICallActionConfig = {
-  persona: string; // e.g. "Mom", "Roommate", "Uber Driver"
+  persona: AIPersona; // e.g. "Mom", "Roommate", "Uber Driver"
   prompt: string; // custom prompt
 };
+const AI_PERSONAS = ["Mom", "Dad", "Friend"] as const;
+type AIPersona = typeof AI_PERSONAS[number];
 
 type PasscodeAction =
   | { type: 'text'; config: TextActionConfig }
@@ -490,20 +492,30 @@ export default function SettingsScreen() {
   return (
     <View style={{ gap: 10 }}>
       <Text style={styles.smallLabel}>AI Persona</Text>
-      <TextInput
-        value={config.persona}
-        onChangeText={v =>
-          patchRule(rule.id, {
-            action: {
-              type: 'ai_call',
-              config: { ...config, persona: v },
+      <Text style={styles.smallLabel}>AI Persona</Text>
+
+<View style={styles.pills}>
+  {AI_PERSONAS.map(p => (
+    <Pill
+      key={p}
+      label={p}
+      active={config.persona === p}
+      onPress={() => {
+        Haptics.selectionAsync();
+        patchRule(rule.id, {
+          action: {
+            type: "ai_call",
+            config: {
+              ...config,
+              persona: p,
             },
-          })
-        }
-        placeholder="Friend / Mom / Roommate"
-        placeholderTextColor="#6B7280"
-        style={styles.input}
-      />
+          },
+        });
+      }}
+    />
+  ))}
+</View>
+
 
       <Text style={styles.smallLabel}>Custom Prompt</Text>
       <TextInput
