@@ -1,22 +1,22 @@
-import fetch from "node-fetch";
+import { Expo } from "expo-server-sdk";
+
+const expo = new Expo();
 
 export async function sendPush(
-  pushToken: string,
+  token: string,
   title: string,
   body: string,
-  data: Record<string, any>
+  data: any
 ) {
-  await fetch("http://192.168.1.23:8080/v1/ping", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      to: pushToken,
+  if (!Expo.isExpoPushToken(token)) return;
+
+  await expo.sendPushNotificationsAsync([
+    {
+      to: token,
       sound: "default",
       title,
       body,
-      data, // THIS IS CRITICAL
-    }),
-  });
+      data
+    }
+  ]);
 }
