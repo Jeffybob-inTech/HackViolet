@@ -43,29 +43,38 @@ if (error) throw error;
 });
 
 // --- WAKE-UP STUB (no-op, never errors) ---
-app.post("/api/wake-up", async (_req, res) => {
-  try {
-    // Frontend expects an audio blob
-    res.setHeader("Content-Type", "audio/mpeg");
+app.post("/api/wake-up", (_req, res) => {
+  // 0.25s of silence, 44.1kHz, mono, 16-bit PCM
+  const wav = Buffer.from([
+    0x52,0x49,0x46,0x46, // RIFF
+    0x24,0x08,0x00,0x00, // file size
+    0x57,0x41,0x56,0x45, // WAVE
+    0x66,0x6d,0x74,0x20, // fmt
+    0x10,0x00,0x00,0x00, // fmt length
+    0x01,0x00,           // PCM
+    0x01,0x00,           // mono
+    0x44,0xac,0x00,0x00, // 44100 Hz
+    0x88,0x58,0x01,0x00, // byte rate
+    0x02,0x00,           // block align
+    0x10,0x00,           // bits per sample
+    0x64,0x61,0x74,0x61, // data
+    0x00,0x08,0x00,0x00, // data length
+    // silence
+    ...new Array(2048).fill(0),
+  ]);
 
-    // Send 1 second of silence (valid audio)
-    const silentMp3 = Buffer.from([
-      0x49,0x44,0x33, // ID3 header (minimal valid MP3)
-      0x03,0x00,0x00,0x00,0x00,0x00,0x21
-    ]);
-
-    res.status(200).send(silentMp3);
-  } catch {
-    // Absolute fallback — NEVER crash
-    res.status(200).end();
-  }
+  res.setHeader("Content-Type", "audio/wav");
+  res.setHeader("Content-Length", wav.length);
+  res.status(200).send(wav);
 });
+
 
 // --- TALK-AUDIO STUB (echo silence) ---
-app.post("/api/talk-audio", async (_req, res) => {
-  res.setHeader("Content-Type", "audio/mpeg");
-  res.status(200).send(Buffer.alloc(0));
+app.post("/api/talk-audio", (_req, res) => {
+  res.setHeader("Content-Type", "audio/wav");
+  res.status(200).send(Buffer.alloc(44)); // valid empty WAV header
 });
+
 
 /* ---------- update location ---------- */
 
@@ -122,7 +131,7 @@ app.post("/call", async (req, res) => {
       )
     )
   );
-
+  console.log("Device imfo said")
   res.json({ ok: true });
 });
 
