@@ -3,6 +3,20 @@ import { useState, useRef } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import MapView, { Marker } from 'react-native-maps';
 import { useRouter } from 'expo-router';
+import * as Notifications from "expo-notifications";
+import { useEffect } from "react";
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+
+    // NEW (replaces shouldShowAlert)
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
 
 type Member = {
   id: string;
@@ -14,11 +28,27 @@ type Member = {
 };
 
 export default function HomeScreen() {
-  const router = useRouter();
-  const [phone, setPhone] = useState('');
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const pingAnim = useRef(new Animated.Value(0)).current;
 
-  const [members, setMembers] = useState<Member[]>([
+function triggerPing() {
+  pingAnim.setValue(0);
+  Animated.sequence([
+    Animated.timing(pingAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }),
+    Animated.timing(pingAnim, {
+      toValue: 0,
+      duration: 600,
+      useNativeDriver: true,
+    }),
+  ]).start();
+}
+
+const deviceToken = "...";
+const circleId = "...";
+const [members, setMembers] = useState<Member[]>([
     {
       id: '1',
       name: 'Alex',
@@ -29,28 +59,117 @@ export default function HomeScreen() {
     },
   ]);
 
-  const addMember = () => {
-    if (!phone) return;
-
-    setMembers(m => [
-      ...m,
-      {
-        id: crypto.randomUUID(),
-        name: 'New Member',
-        phone,
-        lat: 40.7128,
-        lng: -74.006,
-        status: 'safe',
+async function sendPing() {
+  try {
+    const res = await fetch("http://192.168.1.23:8080/v1/ping", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${deviceToken}`, // REAL value
       },
-    ]);
+      body: JSON.stringify({
+        circleId, // REAL value
+      }),
+    });
 
-    setPhone('');
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 600,
-      useNativeDriver: true,
-    }).start();
-  };
+    if (!res.ok) {
+      console.warn("Ping failed", await res.text());
+    }
+  } catch (e) {
+    console.error("Ping error", e);
+  }
+}
+
+  const router = useRouter();
+  const [phone, setPhone] = useState('');
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  
+
+  const addMember = () => {
+  if (!phone) return;
+
+  setMembers(m => [
+    ...m,
+    {
+      id: Date.now().toString(),
+      name: 'New Member',
+      phone,
+      lat: 0,
+      lng: 0,
+      status: 'safe',
+    },
+  ]);
+
+  setPhone('');
+  Animated.timing(fadeAnim, {
+    toValue: 1,
+    duration: 600,
+    useNativeDriver: true,
+  }).start();
+};
+
+
+
+function handlePing(lat: number, lng: number) {
+  const pingId = `ping-${Date.now()}`;
+
+  setMembers(m => [
+    ...m,
+    {
+      id: pingId,
+      name: "Ping",
+      phone: "",
+      lat,
+      lng,
+      status: "alert",
+    },
+  ]);
+
+  setTimeout(() => {
+    setMembers(m => m.filter(x => x.id !== pingId));
+  }, 60_000);
+}
+useEffect(() => {
+  const sub = Notifications.addNotificationReceivedListener(notification => {
+    const data = notification.request.content.data as any;
+
+    if (data?.type === "PING") {
+      const lat = Number(data.lat);
+      const lng = Number(data.lng);
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        console.warn("Invalid ping payload", data);
+        return;
+      }
+
+      handlePing(lat, lng);
+    }
+  });
+
+  return () => sub.remove();
+}, []);
+useEffect(() => {
+  const sub = Notifications.addNotificationResponseReceivedListener(response => {
+    const data = response.notification.request.content.data as any;
+
+    if (data?.type === "PING") {
+      handlePing(Number(data.lat), Number(data.lng));
+    }
+  });
+
+  return () => sub.remove();
+}, []);
+useEffect(() => {
+  const sub = Notifications.addNotificationReceivedListener(n => {
+    if (n.request.content.data?.type === "PING") {
+      triggerPing();
+    }
+  });
+
+  return () => sub.remove();
+}, []);
+
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 80 }}>
@@ -61,6 +180,23 @@ export default function HomeScreen() {
           <Text style={styles.settings}>Settings</Text>
         </TouchableOpacity>
       </View>
+    <Animated.View
+  style={{
+    opacity: pingAnim,
+    transform: [{ scale: pingAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.9, 1.05],
+    }) }],
+    backgroundColor: "#ff4444",
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+  }}
+>
+  <Text style={{ color: "white", fontWeight: "700" }}>
+    🚨 Incoming Ping
+  </Text>
+</Animated.View>
 
       {/* Gradient Hero */}
       <LinearGradient
@@ -126,6 +262,12 @@ export default function HomeScreen() {
           <View>
             <Text style={styles.memberName}>{m.name}</Text>
             <Text style={styles.memberSub}>{m.phone}</Text>
+            <TouchableOpacity
+  onPress={() => sendPing()}
+  style={{ marginTop: 8 }}
+>
+  <Text style={{ color: "#A5B4FC" }}>Ping</Text>
+</TouchableOpacity>
           </View>
 
           <View
@@ -135,11 +277,12 @@ export default function HomeScreen() {
             ]}
           />
         </Animated.View>
+        
+
       ))}
     </ScrollView>
   );
 }
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,

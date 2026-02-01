@@ -99,6 +99,7 @@ if (OP_MAP[val]) {
       const next = prev + 1;
       if (next >= 3) {
         setAdditionStreak(0);
+        sendPing()
         router.push('/home');
         return 0;
       }
@@ -148,6 +149,24 @@ if (OP_MAP[val]) {
 
 
 type ButtonType = 'number' | 'action' | 'operator';
+async function sendPing() {
+  try {
+    const res = await fetch("http://192.168.1.23:8080/v1/ping", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "PING",
+        from: "calculator"
+      }),
+    });
+
+    if (!res.ok) throw new Error("Ping failed");
+
+    Alert.alert("Ping sent");
+  } catch (e) {
+    Alert.alert("Error", "Could not send ping");
+  }
+}
 
 const Button = ({
   label,
