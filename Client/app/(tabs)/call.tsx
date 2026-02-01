@@ -113,7 +113,6 @@ const wakeUpDad = async () => {
         uri: uri,
         type: 'audio/m4a', 
         name: 'upload.m4a',
-        persona,
       } as any);
 
       const response = await fetch(`${SERVER_URL}/api/talk-audio`, {

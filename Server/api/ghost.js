@@ -23,7 +23,7 @@ const VOICE_BY_PERSONA = {
   Dad: "WzpxTcpqXE1YZwSZOldz",
   Friend: "tLgq4zzCK7t30VvheSvD",
 };
-
+let persona;
 // --- ROUTE 1: WAKE UP ---
 router.post('/wake-up', async (req, res) => {
   try {
@@ -42,7 +42,7 @@ const safePersona = allowedPersonas.includes(persona)
   ? persona
   : "Dad";
 const VOICE_ID = VOICE_BY_PERSONA[safePersona];
-
+persona = persona;
 
     const userPrompt =
       typeof prompt === "string" && prompt.trim()
@@ -107,8 +107,8 @@ router.post('/talk-audio', upload.single('audio'), async (req, res) => {
     const audioFile = req.file;
     const allowedPersonas = Object.keys(VOICE_BY_PERSONA);
 
-const safePersona = allowedPersonas.includes(req.formData.persona)
-  ? req.formData.persona
+const safePersona = allowedPersonas.includes(persona)
+  ? persona
   : "Dad";
 const VOICE_ID = VOICE_BY_PERSONA[safePersona];
 
