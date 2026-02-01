@@ -104,12 +104,15 @@ router.post('/talk-audio', upload.single('audio'), async (req, res) => {
 
   try {
     const audioFile = req.file;
-    const allowedPersonas = Object.keys(VOICE_BY_PERSONA);
+    const { persona } = req.body || {};
 
-const safePersona = allowedPersonas.includes(peronay)
-  ? peronay
+const allowedPersonas = Object.keys(VOICE_BY_PERSONA);
+const safePersona = allowedPersonas.includes(persona)
+  ? persona
   : "Dad";
+
 const VOICE_ID = VOICE_BY_PERSONA[safePersona];
+
 
     if (!audioFile) return res.status(400).json({ error: 'No audio sent' });
 
@@ -133,10 +136,25 @@ const VOICE_ID = VOICE_BY_PERSONA[safePersona];
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     const prompt = `
-      Roleplay: Protective father Jim. User said: "${userText}"
-      Task: Respond naturally to your daughter. Speak like a real parent. Preferably less than 20 words.
-      CRITICAL: ONLY write the spoken words. No *actions*.
-    `;
+You are ${safePersona} on a phone call with the user.
+
+Persona traits:
+${safePersona === "Dad" ? "- Protective, calm, slightly concerned" : ""}
+${safePersona === "Mom" ? "- Warm, reassuring, emotionally attentive" : ""}
+${safePersona === "Friend" ? "- Casual, supportive, low-stress" : ""}
+
+Conversation context:
+User just said: "${userText}"
+
+Rules (STRICT):
+- Output spoken dialogue only
+- One sentence
+- Under 18 words
+- Never end the call
+- No questions unless natural
+- Sound like a real human, not an assistant
+`;
+
 
     const geminiResult = await model.generateContent(prompt);
     const dadResponse = geminiResult.response.text();

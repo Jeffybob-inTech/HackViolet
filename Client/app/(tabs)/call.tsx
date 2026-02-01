@@ -13,7 +13,8 @@ export default function CallScreen() {
   const router = useRouter();
   const [callState, setCallState] = useState<'INCOMING' | 'CONNECTED'>('INCOMING');
   const [timer, setTimer] = useState(0);
-  
+  const [callerName, setCallerName] = useState("Dad");
+
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeaker, setIsSpeaker] = useState(false);
   const [showKeypad, setShowKeypad] = useState(false);
@@ -69,6 +70,8 @@ const wakeUpDad = async () => {
     console.log("Waking up AI caller...");
 
     const { persona, prompt } = await getAICallConfig();
+    setCallerName(persona);
+
 
     const response = await fetch(`${SERVER_URL}/api/wake-up`, {
       method: "POST",
@@ -108,16 +111,21 @@ const wakeUpDad = async () => {
 
       const { persona, prompt } = await getAICallConfig();
 
-      const formData = new FormData();
-      formData.append('audio', {
-        uri: uri,
-        type: 'audio/m4a', 
-        name: 'upload.m4a',
-      } as any);
+const formData = new FormData();
+formData.append("audio", {
+  uri,
+  type: "audio/m4a",
+  name: "upload.m4a",
+} as any);
+
+// 🔥 ADD THESE
+formData.append("persona", persona);
+formData.append("prompt", prompt);
+
 
       const response = await fetch(`${SERVER_URL}/api/talk-audio`, {
         method: 'POST',
-        body: JSON.stringify({ persona, formData }),
+        body: formData,
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
