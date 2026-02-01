@@ -61,7 +61,7 @@ const [members, setMembers] = useState<Member[]>([
 
 async function sendPing() {
   try {
-    const res = await fetch("http://192.168.1.23:8080/v1/ping", {
+    const res = await fetch("https://hackviolet.onrender.com/v1/ping", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
