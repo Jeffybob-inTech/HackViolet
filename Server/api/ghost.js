@@ -107,8 +107,8 @@ router.post('/talk-audio', upload.single('audio'), async (req, res) => {
     const audioFile = req.file;
     const allowedPersonas = Object.keys(VOICE_BY_PERSONA);
 
-const safePersona = allowedPersonas.includes(req.persona)
-  ? req.persona
+const safePersona = allowedPersonas.includes(req.formData.persona)
+  ? req.formData.persona
   : "Dad";
 const VOICE_ID = VOICE_BY_PERSONA[safePersona];
 
