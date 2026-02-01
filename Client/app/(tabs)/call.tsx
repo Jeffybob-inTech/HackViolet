@@ -34,6 +34,9 @@ export default function CallScreen() {
     useCallback(() => {
       (async () => {
         const { status } = await Audio.requestPermissionsAsync();
+        const { persona } = await getAICallConfig();
+        setCallerName(persona);
+
         if (status !== 'granted') alert('Permission to access microphone is required!');
       })();
     }, [])
