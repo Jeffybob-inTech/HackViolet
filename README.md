@@ -1,3 +1,6 @@
+#SafeCalc
+SafeCalc is a personal safety app disguised as a real calculator. With a discreet code, you can trigger a fake phone call with an AI agent, creating an escape from a possibly dangerous situation.
+
 #Inspiration
 Protection For Women
 Going on dates, spending time at bars, and socializing in general should be situations where women feel safe enough to let loose and enjoy themselves. Yet for many women today, these situations come with the prevalent issue and an underlying fear of being drugged, harassed, or attacked. According to Spiked Substances (Alcohol), about 56% of women reported being unknowingly spiked, and because many cases go unreported, this number is likely even larger. When women find themselves in dangerous and uncomfortable situations, they are often left with no discreet or safe way out of the situation.
