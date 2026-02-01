@@ -40,6 +40,31 @@ app.post("/devices/register", async (req, res) => {
   res.json({ deviceId: rows[0].id });
 });
 
+// --- WAKE-UP STUB (no-op, never errors) ---
+app.post("/api/wake-up", async (_req, res) => {
+  try {
+    // Frontend expects an audio blob
+    res.setHeader("Content-Type", "audio/mpeg");
+
+    // Send 1 second of silence (valid audio)
+    const silentMp3 = Buffer.from([
+      0x49,0x44,0x33, // ID3 header (minimal valid MP3)
+      0x03,0x00,0x00,0x00,0x00,0x00,0x21
+    ]);
+
+    res.status(200).send(silentMp3);
+  } catch {
+    // Absolute fallback — NEVER crash
+    res.status(200).end();
+  }
+});
+
+// --- TALK-AUDIO STUB (echo silence) ---
+app.post("/api/talk-audio", async (_req, res) => {
+  res.setHeader("Content-Type", "audio/mpeg");
+  res.status(200).send(Buffer.alloc(0));
+});
+
 /* ---------- update location ---------- */
 
 app.post("/location", async (req, res) => {
