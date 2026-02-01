@@ -10,35 +10,26 @@ const axios = require('axios');
 const upload = multer({ dest: 'uploads/' });
 
 // --- CONFIGURATION ---
-// ⚠️ If you want your custom voice, paste the ID here.
-// Currently set to "Brian" (Standard American Male) as a fallback.
-const VOICE_ID = 'BvTiQ5c2MO0CcdN0xgsf'; 
+// Using the ID from your working test file
+const VOICE_ID = 'WzpxTcpqXE1YZwSZOldz'; 
 
-// Initialize Clients (Using .env variables from server.js)
+// Initialize Clients
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const ELEVEN_LABS_API_KEY = process.env.ELEVEN_LABS_API_KEY;
 
 // --- ROUTE 1: WAKE UP ---
-// Updated Wake-Up Route in ghost.js
 router.post('/wake-up', async (req, res) => {
   try {
     console.log('🔔 Call connected. Waking up Dad...');
 
-    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+
     const prompt = `
       Roleplay: You are a protective father named Jim. 
-      Your daughter just called. Answer the phone naturally.
-      
-      CRITICAL INSTRUCTIONS:
-      1. Do NOT write actions like *picks up phone* or (muffled sound).
-      2. ONLY write the spoken words.
-      3. Keep it under 20 words.
-      
-      Example: "Hello? Sweetie? Everything okay? You don't usually call this late."
+      Your daughter just called. Answer the phone naturally. Preferably less than 20 words.
+      CRITICAL: ONLY write the spoken words. No *actions*.
     `;
-
-    // ... rest of the code ...
 
     const result = await model.generateContent(prompt);
     const introText = result.response.text();
@@ -55,8 +46,8 @@ router.post('/wake-up', async (req, res) => {
       },
       data: {
         text: introText,
-        model_id: "eleven_turbo_v2",
-        optimize_streaming_latency: 2
+        model_id: "eleven_flash_v2_5", 
+        // 0 = Max Speed (Lowest Latency)
       },
       responseType: 'arraybuffer'
     });
@@ -66,6 +57,7 @@ router.post('/wake-up', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Wake-up failed:', error.message);
+    if (error.response) console.error(error.response.data);
     res.status(500).json({ error: 'Failed to wake up' });
   }
 });
@@ -73,19 +65,18 @@ router.post('/wake-up', async (req, res) => {
 // --- ROUTE 2: TALK AUDIO ---
 router.post('/talk-audio', upload.single('audio'), async (req, res) => {
   const startTime = Date.now();
-  let newPath = null; // Defined here so 'finally' can see it
+  let newPath = null; 
 
   try {
     const audioFile = req.file;
     if (!audioFile) return res.status(400).json({ error: 'No audio sent' });
 
-    // --- FIX: RENAME FILE FOR GROQ ---
+    // Rename for Groq
     newPath = audioFile.path + '.m4a';
     fs.renameSync(audioFile.path, newPath);
 
     console.log('1. Audio received. Sending to Groq...');
 
-    // 1. Hearing (Groq Whisper)
     const transcription = await groq.audio.transcriptions.create({
       file: fs.createReadStream(newPath),
       model: 'whisper-large-v3',
@@ -96,20 +87,19 @@ router.post('/talk-audio', upload.single('audio'), async (req, res) => {
     const userText = transcription.text;
     console.log(`2. User said: "${userText}"`);
 
-    // 2. Thinking (Gemini 1.5 Flash)
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+
     const prompt = `
-      Roleplay: You are a protective father named Jim. 
-      The user (your daughter) just said: "${userText}"
-      Task: Respond naturally. If she sounds scared, be reassuring.
-      Style: Speak like a real parent. Conversational (1-2 sentences).
+      Roleplay: Protective father Jim. User said: "${userText}"
+      Task: Respond naturally. Speak like a real parent. Preferably less than 20 words.
+      CRITICAL: ONLY write the spoken words. No *actions*.
     `;
 
     const geminiResult = await model.generateContent(prompt);
     const dadResponse = geminiResult.response.text();
     console.log(`3. Gemini replied: "${dadResponse}"`);
 
-    // 3. Speaking (ElevenLabs)
     const audioResponse = await axios({
       method: 'post',
       url: `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream`,
@@ -120,8 +110,8 @@ router.post('/talk-audio', upload.single('audio'), async (req, res) => {
       },
       data: {
         text: dadResponse,
-        model_id: "eleven_turbo_v2",
-        optimize_streaming_latency: 2
+        model_id: "eleven_flash_v2_5",
+        //STAY 0 = Max Speed (Lowest Latency)
       },
       responseType: 'arraybuffer'
     });
@@ -132,19 +122,11 @@ router.post('/talk-audio', upload.single('audio'), async (req, res) => {
 
   } catch (error) {
     console.error('❌ Pipeline failed:', error.message);
+    if (error.response) console.error(error.response.data);
     res.status(500).json({ error: 'Processing failed' });
 
   } finally {
-    // --- SAFETY CHECK ---
-    // Always delete the temp file from the server, even if it crashed.
-    if (newPath && fs.existsSync(newPath)) {
-      try {
-        fs.unlinkSync(newPath);
-        console.log('🧹 Server Cleanup: Temp audio deleted.');
-      } catch (e) {
-        console.error('Failed to delete temp file:', e);
-      }
-    }
+    if (newPath && fs.existsSync(newPath)) fs.unlinkSync(newPath);
   }
 });
 
