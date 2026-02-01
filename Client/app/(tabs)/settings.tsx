@@ -14,6 +14,11 @@ import uuid from 'react-native-uuid';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  handlePasscodeKeyPress,
+  //STORAGE_KEYS,
+  //FiredAction,
+} from "../../lib/passcodeEngine";
 
 /* ================================
    Storage Keys
@@ -51,60 +56,6 @@ export type FiredAction =
   | { kind: 'text'; fromUsername: string; toUsername: string; message: string }
   | { kind: 'ai_call'; fromUsername: string; persona: string; prompt: string };
 
-export async function handlePasscodeKeyPress(params: {
-  pressedKey: string;
-  username: string;
-}): Promise<FiredAction | null> {
-  // Loads rules, checks if any matches “pressedKey repeated N times”.
-  // You’ll call this from the calculator screen and then do the actual send/call.
-  const raw = await AsyncStorage.getItem(STORAGE_KEYS.rules);
-  const rules: PasscodeRule[] = raw ? JSON.parse(raw) : [];
-
-  // We need the recent key history; store it too.
-  const histKey = 'hv:key_history';
-  const histRaw = await AsyncStorage.getItem(histKey);
-  const hist: string[] = histRaw ? JSON.parse(histRaw) : [];
-
-  const next = [...hist, params.pressedKey].slice(-12);
-  await AsyncStorage.setItem(histKey, JSON.stringify(next));
-
-  // Find any rule whose trigger key is the last `count` presses AND all equal to trigger.key
-  for (const rule of rules) {
-    const { key, count } = rule.trigger;
-    if (count <= 0) continue;
-    if (next.length < count) continue;
-
-    const tail = next.slice(-count);
-    const match = tail.every(k => k === key);
-
-    if (!match) continue;
-
-    // Matched: clear history so it doesn’t immediately re-fire.
-    await AsyncStorage.setItem(histKey, JSON.stringify([]));
-
-    if (rule.action.type === 'text') {
-      return {
-        kind: 'text',
-        fromUsername: params.username,
-        toUsername: rule.action.config.toUser.trim(),
-        message: rule.action.config.message,
-      };
-    }
-
-    if (rule.action.type === 'ai_call') {
-      return {
-        kind: 'ai_call',
-        fromUsername: params.username,
-        persona: rule.action.config.persona.trim(),
-        prompt: rule.action.config.prompt,
-      };
-    }
-
-    return null;
-  }
-
-  return null;
-}
 
 /* ================================
    Animated Background

@@ -21,35 +21,60 @@ const ELEVEN_LABS_API_KEY = process.env.ELEVEN_LABS_API_KEY;
 // --- ROUTE 1: WAKE UP ---
 router.post('/wake-up', async (req, res) => {
   try {
-    console.log('🔔 Call connected. Waking up Dad...');
+    const { persona, prompt } = req.body || {};
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+    console.log('🔔 Call connected. Waking up AI caller...');
 
-    const prompt = `
-      Roleplay: You are a protective father named Jim. 
-      Your are calling your daughter, checking in on her. Preferably less than 20 words like a "hi how are you".
-      CRITICAL: ONLY write the spoken words. No *actions*.
-    `;
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash-lite",
+    });
 
-    const result = await model.generateContent(prompt);
-    const introText = result.response.text();
-    console.log(`🗣️ Dad says: "${introText}"`);
+    // ---- SAFETY & FALLBACKS ----
+    const safePersona =
+      typeof persona === "string" && persona.trim()
+        ? persona.trim().slice(0, 40)
+        : "protective father named Jim";
 
-    // 2. Generate Audio
+    const userPrompt =
+      typeof prompt === "string" && prompt.trim()
+        ? prompt.trim().slice(0, 400)
+        : "Call and casually check in. Sound normal and calm.";
+
+    // ---- SYSTEM WRAPPER (CRITICAL) ----
+    const finalPrompt = `
+Roleplay as ${safePersona}.
+You are calling the user.
+
+User intent:
+"${userPrompt}"
+
+RULES:
+- Respond in spoken dialogue only
+- No actions, no stage directions, no emojis
+- Less than 20 words
+- Sound realistic and casual
+- One short sentence preferred
+`;
+
+    const result = await model.generateContent(finalPrompt);
+    const introText = result.response.text().trim();
+
+    console.log(`🗣️ AI says: "${introText}"`);
+
+    // ---- TTS ----
     const audioResponse = await axios({
       method: 'post',
       url: `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream`,
       headers: {
-        'Accept': 'audio/mpeg',
+        Accept: 'audio/mpeg',
         'xi-api-key': ELEVEN_LABS_API_KEY,
         'Content-Type': 'application/json',
       },
       data: {
         text: introText,
-        model_id: "eleven_flash_v2_5", 
-        // 0 = Max Speed (Lowest Latency)
+        model_id: "eleven_flash_v2_5",
       },
-      responseType: 'arraybuffer'
+      responseType: 'arraybuffer',
     });
 
     res.set('Content-Type', 'audio/mpeg');
@@ -61,6 +86,7 @@ router.post('/wake-up', async (req, res) => {
     res.status(500).json({ error: 'Failed to wake up' });
   }
 });
+
 
 // --- ROUTE 2: TALK AUDIO ---
 router.post('/talk-audio', upload.single('audio'), async (req, res) => {

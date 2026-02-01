@@ -6,6 +6,8 @@ import * as Haptics from 'expo-haptics';
 import * as FileSystem from 'expo-file-system'; // <--- NEW IMPORT
 import { Ionicons, MaterialCommunityIcons, Entypo } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 
 export default function CallScreen() {
   const router = useRouter();
@@ -35,40 +37,69 @@ export default function CallScreen() {
       })();
     }, [])
   );
+  async function getAICallConfig() {
+  try {
+    const raw = await AsyncStorage.getItem("hv:passcode_rules_v1");
+    if (!raw) throw new Error("No rules");
 
-  // --- 2. WAKE UP (THE GREETING) ---
-  const wakeUpDad = async () => {
-    try {
-      console.log('Waking up Dad...');
-      
-      const response = await fetch(`${SERVER_URL}/api/wake-up`, {
-        method: 'POST',
-      });
+    const rules = JSON.parse(raw);
 
-      if (!response.ok) throw new Error('Wake up failed');
+    const aiRule = rules.find(
+      (r: any) => r.action?.type === "ai_call"
+    );
 
-      const blob = await response.blob();
-      const reader = new FileReader();
-      reader.readAsDataURL(blob);
+    if (!aiRule) throw new Error("No AI rule");
 
-      reader.onloadend = async () => {
-        const base64Uri = reader.result as string;
-        
-        if (soundRef.current) {
-          try { await soundRef.current.unloadAsync(); } catch (e) {}
-        }
+    return {
+      persona: aiRule.action.config.persona,
+      prompt: aiRule.action.config.prompt,
+    };
+  } catch {
+    // 🔒 hard fallback (never crash call UI)
+    return {
+      persona: "protective father named Jim",
+      prompt: "Call and casually check in. Sound normal.",
+    };
+  }
+}
 
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: base64Uri },
-          { shouldPlay: true }
-        );
-        soundRef.current = sound;
-      };
 
-    } catch (e) {
-      console.error("Wake up error:", e);
-    }
-  };
+const wakeUpDad = async () => {
+  try {
+    console.log("Waking up AI caller...");
+
+    const { persona, prompt } = await getAICallConfig();
+
+    const response = await fetch(`${SERVER_URL}/api/wake-up`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ persona, prompt }),
+    });
+
+    if (!response.ok) throw new Error("Wake up failed");
+
+    const blob = await response.blob();
+    const reader = new FileReader();
+    reader.readAsDataURL(blob);
+
+    reader.onloadend = async () => {
+      const base64Uri = reader.result as string;
+
+      if (soundRef.current) {
+        try { await soundRef.current.unloadAsync(); } catch {}
+      }
+
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: base64Uri },
+        { shouldPlay: true }
+      );
+      soundRef.current = sound;
+    };
+  } catch (e) {
+    console.error("Wake up error:", e);
+  }
+};
+
 
   // --- 3. UPLOAD & PLAY RESPONSE (SECURE) ---
   const uploadAudio = async (uri: string) => {

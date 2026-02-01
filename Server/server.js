@@ -54,7 +54,7 @@ app.get("/locations", async (_req, res) => {
 
 /* ---------- update location ---------- */
 app.post("/location", async (req, res) => {
-  const { deviceId, lat, lng, accuracy, city } = req.body || {};
+  const { deviceId, lat, lng, accuracy } = req.body || {};
   if (!deviceId || lat == null || lng == null) {
     return res.status(400).json({ error: "bad_request" });
   }
@@ -66,7 +66,6 @@ app.post("/location", async (req, res) => {
       lat,
       lng,
       accuracy: accuracy ?? null,
-      city: typeof city === "string" ? city.trim() : null,
       updated_at: new Date().toISOString(),
     });
 
@@ -74,10 +73,9 @@ app.post("/location", async (req, res) => {
     console.error(error);
     return res.status(500).json({ error: "db_error" });
   }
-
+  console.log("got location")
   res.json({ ok: true });
 });
-
 /* ---------- GROUP MESSAGES ---------- */
 
 // GET last 2 hours of messages (limit 80)
@@ -121,8 +119,8 @@ app.post("/messages", async (req, res) => {
   // city source of truth:
   // - if you later add `city` on locations, it'll use it
   // - otherwise it falls back to "Unknown"
-  const city = deviceId
-    //(loc && typeof loc.city === "string" && loc.city.trim()) ? loc.city.trim() : "Unknown";
+  const city =
+    (loc && typeof loc.city === "string" && loc.city.trim()) ? loc.city.trim() : "Unknown";
 
   const { data, error } = await supabase
     .from("group_messages")
