@@ -6,7 +6,7 @@ const helmet = require("helmet");
 const { supabase } = require("./supabase");
 const { sendPush } = require("./push");
 
-const ghostRoutes = require('./ghost')
+const ghostRoutes = require('./api/ghost')
 
 const app = express();
 
