@@ -54,7 +54,7 @@ app.get("/locations", async (_req, res) => {
 
 /* ---------- update location ---------- */
 app.post("/location", async (req, res) => {
-  const { deviceId, lat, lng, accuracy } = req.body || {};
+  const { deviceId, lat, lng, accuracy, city } = req.body || {};
   if (!deviceId || lat == null || lng == null) {
     return res.status(400).json({ error: "bad_request" });
   }
@@ -66,6 +66,7 @@ app.post("/location", async (req, res) => {
       lat,
       lng,
       accuracy: accuracy ?? null,
+      city: typeof city === "string" ? city.trim() : null,
       updated_at: new Date().toISOString(),
     });
 
@@ -73,8 +74,72 @@ app.post("/location", async (req, res) => {
     console.error(error);
     return res.status(500).json({ error: "db_error" });
   }
-  console.log("got location")
+
   res.json({ ok: true });
+});
+
+/* ---------- GROUP MESSAGES ---------- */
+
+// GET last 2 hours of messages (limit 80)
+app.get("/messages", async (_req, res) => {
+  const since = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+
+  const { data, error } = await supabase
+    .from("group_messages")
+    .select("id, device_id, city, text, created_at")
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(80);
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: "db_error" });
+  }
+
+  res.json(data);
+});
+
+// POST a message (server stamps city from latest location if available)
+app.post("/messages", async (req, res) => {
+  const { deviceId, text } = req.body || {};
+
+  if (!deviceId || typeof text !== "string") {
+    return res.status(400).json({ error: "bad_request" });
+  }
+
+  const cleaned = text.trim();
+  if (!cleaned) return res.status(400).json({ error: "empty_message" });
+  if (cleaned.length > 280) return res.status(400).json({ error: "too_long" });
+
+  // get latest known location (and city if you store it later)
+  const { data: loc, error: locErr } = await supabase
+    .from("locations")
+    .select("lat, lng, updated_at, city")
+    .eq("device_id", deviceId)
+    .single();
+
+  // city source of truth:
+  // - if you later add `city` on locations, it'll use it
+  // - otherwise it falls back to "Unknown"
+  const city =
+    (loc && typeof loc.city === "string" && loc.city.trim()) ? loc.city.trim() : "Unknown";
+
+  const { data, error } = await supabase
+    .from("group_messages")
+    .insert({
+      device_id: deviceId,
+      city,
+      text: cleaned,
+    })
+    .select("id, device_id, city, text, created_at")
+    .single();
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: "db_error" });
+  }
+
+  res.json(data);
 });
 
 /* ---------- CALL / PING ---------- */
