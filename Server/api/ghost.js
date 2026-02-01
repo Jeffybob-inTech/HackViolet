@@ -12,7 +12,7 @@ const upload = multer({ dest: 'uploads/' });
 // --- CONFIGURATION ---
 // ⚠️ If you want your custom voice, paste the ID here.
 // Currently set to "Brian" (Standard American Male) as a fallback.
-const VOICE_ID = 'nPczCjzI2devNBz1zQrb'; 
+const VOICE_ID = 'BvTiQ5c2MO0CcdN0xgsf'; 
 
 // Initialize Clients (Using .env variables from server.js)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -20,18 +20,25 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const ELEVEN_LABS_API_KEY = process.env.ELEVEN_LABS_API_KEY;
 
 // --- ROUTE 1: WAKE UP ---
+// Updated Wake-Up Route in ghost.js
 router.post('/wake-up', async (req, res) => {
   try {
     console.log('🔔 Call connected. Waking up Dad...');
 
-    // 1. Generate Natural Greeting
-    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
     const prompt = `
-      Roleplay: You are a protective, caring father named Jim. 
-      Your daughter just called you unexpectedly. You are worried but trying to stay calm.
-      Task: Answer the phone naturally. Ask if she is okay or where she is.
-      Style: Conversational, comforting, realistic. Not too short.
+      Roleplay: You are a protective father named Jim. 
+      Your daughter just called. Answer the phone naturally.
+      
+      CRITICAL INSTRUCTIONS:
+      1. Do NOT write actions like *picks up phone* or (muffled sound).
+      2. ONLY write the spoken words.
+      3. Keep it under 20 words.
+      
+      Example: "Hello? Sweetie? Everything okay? You don't usually call this late."
     `;
+
+    // ... rest of the code ...
 
     const result = await model.generateContent(prompt);
     const introText = result.response.text();
