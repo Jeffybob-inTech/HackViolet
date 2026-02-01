@@ -6,6 +6,8 @@ const helmet = require("helmet");
 const { supabase } = require("./supabase");
 const { sendPush } = require("./push");
 
+const ghostRoutes = require('./ghost')
+
 const app = express();
 
 app.use(helmet());
@@ -118,6 +120,8 @@ app.post("/call", async (req, res) => {
   console.log("made call")
   res.json({ ok: true });
 });
+
+app.use('/api', ghostRoutes);
 
 /* ---------- start ---------- */
 const port = process.env.PORT || 8080;

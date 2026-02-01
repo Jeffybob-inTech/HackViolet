@@ -12,7 +12,7 @@ import * as Location from "expo-location";
 
 
 
-const SERVER_URL = "https://hackviolet.onrender.com";
+const SERVER_URL = "https://social-ears-grin.loca.lt";
 
 
 

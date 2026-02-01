@@ -3,6 +3,7 @@ import { useState, useRef, useCallback } from 'react';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
+import * as FileSystem from 'expo-file-system'; // <--- NEW IMPORT
 import { Ionicons, MaterialCommunityIcons, Entypo } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -22,8 +23,8 @@ export default function CallScreen() {
 
   const RINGTONE_URI = 'https://www.soundjay.com/phone/phone-ringing-1.mp3'; 
 
-  // ⚠️ REPLACE WITH YOUR SERVER IP
-  const SERVER_URL = 'https://hackviolet.onrender.com'; 
+  // ⚠️ UPDATE THIS WITH YOUR RENDER URL or Local IP
+  const SERVER_URL = 'https://social-ears-grin.loca.lt'; 
 
   // --- 1. PERMISSIONS ---
   useFocusEffect(
@@ -46,7 +47,6 @@ export default function CallScreen() {
 
       if (!response.ok) throw new Error('Wake up failed');
 
-      // Play the generated greeting
       const blob = await response.blob();
       const reader = new FileReader();
       reader.readAsDataURL(blob);
@@ -70,7 +70,7 @@ export default function CallScreen() {
     }
   };
 
-  // --- 3. UPLOAD & PLAY RESPONSE ---
+  // --- 3. UPLOAD & PLAY RESPONSE (SECURE) ---
   const uploadAudio = async (uri: string) => {
     try {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -112,6 +112,14 @@ export default function CallScreen() {
     } catch (error) {
       console.error("Upload failed:", error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      // --- 🔐 SECURITY: DELETE FROM PHONE ---
+      try {
+        await FileSystem.deleteAsync(uri, { idempotent: true });
+        console.log('🔒 Secure delete: Phone cache cleared.');
+      } catch (e) {
+        console.log('Error deleting temp file:', e);
+      }
     }
   };
 
@@ -132,10 +140,13 @@ export default function CallScreen() {
   const stopRecording = async () => {
     setIsRecording(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    
     if (!recordingRef.current) return;
+    
     await recordingRef.current.stopAndUnloadAsync();
     const uri = recordingRef.current.getURI(); 
     recordingRef.current = null;
+    
     if (uri) await uploadAudio(uri);
   };
 
@@ -181,9 +192,6 @@ export default function CallScreen() {
     }, [callState])
   );
 
-
-
-
   const stopRinging = async () => {
     if (soundRef.current) {
       try { await soundRef.current.stopAsync(); await soundRef.current.unloadAsync(); } catch (e) {}
@@ -199,7 +207,6 @@ export default function CallScreen() {
     await stopRinging();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setCallState('CONNECTED');
-    // TRIGGER THE REAL AI GREETING
     wakeUpDad(); 
   };
 
