@@ -23,11 +23,12 @@ const VOICE_BY_PERSONA = {
   Dad: "WzpxTcpqXE1YZwSZOldz",
   Friend: "tLgq4zzCK7t30VvheSvD",
 };
+let peronay;
 // --- ROUTE 1: WAKE UP ---
 router.post('/wake-up', async (req, res) => {
   try {
     const { persona, prompt } = req.body || {};
-
+    peronay = persona
     console.log('🔔 Call connected. Waking up AI caller...');
 
     const model = genAI.getGenerativeModel({
@@ -105,8 +106,8 @@ router.post('/talk-audio', upload.single('audio'), async (req, res) => {
     const audioFile = req.file;
     const allowedPersonas = Object.keys(VOICE_BY_PERSONA);
 
-const safePersona = allowedPersonas.includes(req.persona)
-  ? req.persona
+const safePersona = allowedPersonas.includes(peronay)
+  ? peronay
   : "Dad";
 const VOICE_ID = VOICE_BY_PERSONA[safePersona];
 

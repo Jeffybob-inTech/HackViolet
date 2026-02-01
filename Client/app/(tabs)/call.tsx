@@ -109,7 +109,7 @@ const wakeUpDad = async () => {
       const { persona, prompt } = await getAICallConfig();
 
       const formData = new FormData();
-      formData.append('audio', persona, {
+      formData.append('audio', {
         uri: uri,
         type: 'audio/m4a', 
         name: 'upload.m4a',
@@ -117,7 +117,7 @@ const wakeUpDad = async () => {
 
       const response = await fetch(`${SERVER_URL}/api/talk-audio`, {
         method: 'POST',
-        body: formData,
+        body: JSON.stringify({ persona, formData }),
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
