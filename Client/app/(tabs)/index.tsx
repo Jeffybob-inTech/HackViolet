@@ -151,7 +151,7 @@ if (OP_MAP[val]) {
 type ButtonType = 'number' | 'action' | 'operator';
 async function sendPing() {
   try {
-    const res = await fetch("https://hackviolet.onrender.com/v1/ping", {
+    const res = await fetch("https://hackviolet.onrender.com/ping", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

@@ -196,7 +196,13 @@ export default function CallScreen() {
     await stopRinging();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setCallState('CONNECTED');
-    
+    await fetch(`${SERVER_URL}/call`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      deviceId: 1
+    })
+  });
     // TRIGGER THE REAL AI GREETING
     wakeUpDad(); 
   };

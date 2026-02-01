@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import * as Notifications from "expo-notifications";
 import { useEffect } from "react";
 
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldPlaySound: true,
@@ -46,8 +47,7 @@ function triggerPing() {
   ]).start();
 }
 
-const deviceToken = "...";
-const circleId = "...";
+
 const [members, setMembers] = useState<Member[]>([
     {
       id: '1',
@@ -61,14 +61,13 @@ const [members, setMembers] = useState<Member[]>([
 
 async function sendPing() {
   try {
-    const res = await fetch("https://hackviolet.onrender.com/v1/ping", {
+    const res = await fetch("https://hackviolet.onrender.com/call", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${deviceToken}`, // REAL value
       },
       body: JSON.stringify({
-        circleId, // REAL value
+        deviceId: 1, // store this after /devices/register
       }),
     });
 
@@ -79,6 +78,7 @@ async function sendPing() {
     console.error("Ping error", e);
   }
 }
+
 
   const router = useRouter();
   const [phone, setPhone] = useState('');
@@ -131,44 +131,38 @@ function handlePing(lat: number, lng: number) {
   }, 60_000);
 }
 useEffect(() => {
-  const sub = Notifications.addNotificationReceivedListener(notification => {
-    const data = notification.request.content.data as any;
+  const handlePingNotification = (data: any) => {
+    if (data?.type !== "PING") return;
 
-    if (data?.type === "PING") {
-      const lat = Number(data.lat);
-      const lng = Number(data.lng);
+    const lat = Number(data.lat);
+    const lng = Number(data.lng);
 
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        console.warn("Invalid ping payload", data);
-        return;
-      }
-
-      handlePing(lat, lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      console.warn("Invalid ping payload", data);
+      return;
     }
+
+    // 1️⃣ animate banner
+    triggerPing();
+
+    // 2️⃣ add map marker
+    handlePing(lat, lng);
+  };
+
+  const receivedSub = Notifications.addNotificationReceivedListener(n => {
+    handlePingNotification(n.request.content.data);
   });
 
-  return () => sub.remove();
-}, []);
-useEffect(() => {
-  const sub = Notifications.addNotificationResponseReceivedListener(response => {
-    const data = response.notification.request.content.data as any;
-
-    if (data?.type === "PING") {
-      handlePing(Number(data.lat), Number(data.lng));
-    }
+  const responseSub = Notifications.addNotificationResponseReceivedListener(r => {
+    handlePingNotification(r.notification.request.content.data);
   });
 
-  return () => sub.remove();
+  return () => {
+    receivedSub.remove();
+    responseSub.remove();
+  };
 }, []);
-useEffect(() => {
-  const sub = Notifications.addNotificationReceivedListener(n => {
-    if (n.request.content.data?.type === "PING") {
-      triggerPing();
-    }
-  });
 
-  return () => sub.remove();
-}, []);
 
 
   return (

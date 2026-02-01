@@ -16,10 +16,7 @@ app.use(helmet());
 app.use(cors({ origin: true }));
 app.use(express.json());
 
-app.use(rateLimit({
-  windowMs: 60_000,
-  max: 100
-}));
+app.set("trust proxy", 1);
 
 /* ---------- health ---------- */
 
@@ -70,11 +67,12 @@ app.post("/location", async (req, res) => {
 
 app.post("/call", async (req, res) => {
   const { deviceId } = req.body || {};
-  console.log("user called")
+
   if (!deviceId) {
-    return res.status(400).json({ error: "bad_request" });
+    return res.status(400).json({ error: "missing_deviceId" });
   }
 
+  // 1️⃣ Get caller location
   const loc = await q(
     `select lat, lng, accuracy
      from locations
@@ -86,14 +84,16 @@ app.post("/call", async (req, res) => {
     return res.status(400).json({ error: "no_location" });
   }
 
+  // 2️⃣ Get all other devices
   const targets = await q(
-    `select id, push_token
+    `select push_token
      from devices
      where push_token is not null
        and id != $1`,
     [deviceId]
   );
 
+  // 3️⃣ Broadcast push
   await Promise.all(
     targets.map(t =>
       sendPush(
@@ -102,10 +102,10 @@ app.post("/call", async (req, res) => {
         "Someone is calling you",
         {
           type: "PING",
-          from: deviceId,
           lat: loc[0].lat,
           lng: loc[0].lng,
-          accuracy: loc[0].accuracy
+          accuracy: loc[0].accuracy,
+          from: deviceId,
         }
       )
     )
@@ -113,6 +113,7 @@ app.post("/call", async (req, res) => {
 
   res.json({ ok: true });
 });
+
 
 /* ---------- start ---------- */
 
