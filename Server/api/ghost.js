@@ -105,6 +105,13 @@ router.post('/talk-audio', upload.single('audio'), async (req, res) => {
 
   try {
     const audioFile = req.file;
+    const allowedPersonas = Object.keys(VOICE_BY_PERSONA);
+
+const safePersona = allowedPersonas.includes(persona)
+  ? persona
+  : "Dad";
+const VOICE_ID = VOICE_BY_PERSONA[safePersona];
+
     if (!audioFile) return res.status(400).json({ error: 'No audio sent' });
 
     // Rename for Groq
