@@ -291,7 +291,7 @@ formData.append("prompt", prompt);
                 <Ionicons name="information-circle-outline" size={28} color="rgba(255,255,255,0.6)" />
             </View>
             <View style={styles.contentIncoming}>
-                <Text style={styles.sharedNameText}>Dad</Text>
+                <Text style={styles.sharedNameText}>{callerName}</Text>
                 <Text style={styles.statusText}>Mobile...</Text>
             </View>
             <View style={styles.controlsAreaIncoming}>
@@ -334,7 +334,7 @@ formData.append("prompt", prompt);
                 {isRecording && <View style={styles.recordingDot} />}
                 <Text style={styles.timerText}>{formatTimer(timer)}</Text>
             </View>
-            <Text style={styles.sharedNameText}>Dad</Text>
+            <Text style={styles.sharedNameText}>{callerName}</Text>
         </View>
 
         {showKeypad ? (
