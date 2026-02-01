@@ -106,11 +106,14 @@ const wakeUpDad = async () => {
     try {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
 
+      const { persona, prompt } = await getAICallConfig();
+
       const formData = new FormData();
       formData.append('audio', {
         uri: uri,
         type: 'audio/m4a', 
         name: 'upload.m4a',
+        persona,
       } as any);
 
       const response = await fetch(`${SERVER_URL}/api/talk-audio`, {
