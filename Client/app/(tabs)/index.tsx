@@ -4,6 +4,10 @@ import { useRouter } from 'expo-router';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
 import { useEffect } from "react";
+import Constants from "expo-constants";
+import * as Location from "expo-location";
+
+
 
 
 
@@ -14,40 +18,25 @@ const SERVER_URL = "https://hackviolet.onrender.com";
 
 export default function CalculatorScreen() {
   const router = useRouter();
+  /*const token = (
+  await Notifications.getExpoPushTokenAsync({
+    projectId: Constants.expoConfig?.extra?.eas?.projectId
+  })
+).data;*/
+const [myDeviceId, setMyDeviceId] = useState<string | null>(null);
 
-  const [myDeviceId, setMyDeviceId] = useState<string | null>(null);
+useEffect(() => {
+  AsyncStorage.getItem("deviceId").then(setMyDeviceId);
+}, []);
+useEffect(() => {
+  (async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") {
+      console.warn("Location permission denied");
+    }
+  })();
+}, []);
 
-  useEffect(() => {
-    // read existing deviceId
-    AsyncStorage.getItem("deviceId").then(id => {
-      console.log("Loaded deviceId:", id);
-      setMyDeviceId(id);
-    });
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      let deviceId = await AsyncStorage.getItem("deviceId");
-
-      if (!deviceId) {
-        const token = (await Notifications.getExpoPushTokenAsync()).data;
-
-        const res = await fetch(`${SERVER_URL}/devices/register`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pushToken: token }),
-        });
-
-        const json = await res.json();
-        console.log("Register response:", json);
-
-        if (json.deviceId) {
-          await AsyncStorage.setItem("deviceId", json.deviceId);
-          setMyDeviceId(json.deviceId); // 🔑 THIS WAS ALSO MISSING
-        }
-      }
-    })();
-  }, []);
   const [minusStreak, setMinusStreak] = useState(0);
   const [additionStreak, setAdditionStreak] = useState(0);
   const [display, setDisplay] = useState('0');
@@ -62,15 +51,35 @@ export default function CalculatorScreen() {
   '−': '-',
   '+': '+',
   };
-  async function sendPing() {
+async function sendPing() {
   if (!myDeviceId) return;
 
-  await fetch("https://hackviolet.onrender.com/call", {
+  await updateLocation(myDeviceId);
+
+  await fetch(`${SERVER_URL}/call`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ deviceId: myDeviceId }),
   });
 }
+
+  async function updateLocation(deviceId: string) {
+  const { coords } = await Location.getCurrentPositionAsync({
+    accuracy: Location.Accuracy.Highest,
+  });
+
+  await fetch("https://hackviolet.onrender.com/location", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      deviceId,
+      lat: coords.latitude,
+      lng: coords.longitude,
+      accuracy: coords.accuracy,
+    }),
+  });
+}
+
 
   const press = (val: string) => {
   // Clear
