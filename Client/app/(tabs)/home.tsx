@@ -5,6 +5,7 @@ import MapView, { Marker } from 'react-native-maps';
 import { useRouter } from 'expo-router';
 import * as Notifications from "expo-notifications";
 import { useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 
 Notifications.setNotificationHandler({
@@ -44,6 +45,22 @@ type LocationRow = {
   lng: number;
   accuracy: number | null;
 };
+type GroupMessage = {
+  id: number;
+  device_id: number;
+  city: string;
+  text: string;
+  created_at: string;
+};
+
+const SERVER_URL = "https://hackviolet.onrender.com";
+
+const [myDeviceId, setMyDeviceId] = useState<number | null>(null);
+
+const [messages, setMessages] = useState<GroupMessage[]>([]);
+const [msgText, setMsgText] = useState("");
+const [msgErr, setMsgErr] = useState<string | null>(null);
+const [sending, setSending] = useState(false);
 
 const [liveLocations, setLiveLocations] = useState<LocationRow[]>([]);
 const [pingMarkers, setPingMarkers] = useState<Member[]>([]);
@@ -76,6 +93,70 @@ useEffect(() => {
 
   return () => sub.remove();
 }, []);
+useEffect(() => {
+  AsyncStorage.getItem("deviceId").then((v) => {
+    const n = v ? Number(v) : null;
+    setMyDeviceId(Number.isFinite(n) ? n : null);
+  });
+}, []);
+async function loadMessages() {
+  try {
+    const res = await fetch(`${SERVER_URL}/messages`);
+    const data = await res.json();
+    if (Array.isArray(data)) setMessages(data);
+  } catch (e) {
+    // don't spam console
+  }
+}
+
+useEffect(() => {
+  let alive = true;
+
+  const tick = async () => {
+    if (!alive) return;
+    await loadMessages();
+  };
+
+  tick();
+  const id = setInterval(tick, 4000);
+
+  return () => {
+    alive = false;
+    clearInterval(id);
+  };
+}, []);
+async function sendMessage() {
+  setMsgErr(null);
+
+  if (!myDeviceId) {
+    setMsgErr("No deviceId yet.");
+    return;
+  }
+
+  const cleaned = msgText.trim();
+  if (!cleaned) return;
+
+  setSending(true);
+  try {
+    const res = await fetch(`${SERVER_URL}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deviceId: myDeviceId, text: cleaned }),
+    });
+
+    if (!res.ok) {
+      setMsgErr(await res.text());
+      return;
+    }
+
+    setMsgText("");
+    await loadMessages();
+  } catch (e) {
+    setMsgErr("Network request failed");
+  } finally {
+    setSending(false);
+  }
+}
 
 
 useEffect(() => {
@@ -299,6 +380,48 @@ useEffect(() => {
           </TouchableOpacity>
         </View>
       </View>
+<Text style={styles.sectionTitle}>Group messages</Text>
+
+<View style={styles.chatCard}>
+  <View style={styles.chatList}>
+    <ScrollView>
+      {messages.slice().reverse().map(m => {
+        const label = `${m.city} user`;
+        const mine = myDeviceId != null && m.device_id === myDeviceId;
+
+        return (
+          <View key={m.id} style={[styles.chatBubble, mine ? styles.chatMine : styles.chatOther]}>
+            <Text style={styles.chatMeta}>{label}:</Text>
+            <Text style={styles.chatText}>{m.text}</Text>
+          </View>
+        );
+      })}
+      {messages.length === 0 && (
+        <Text style={{ color: "#9CA3AF" }}>No messages in the last 2 hours.</Text>
+      )}
+    </ScrollView>
+  </View>
+
+  {msgErr && <Text style={{ color: "#FCA5A5", marginTop: 8 }}>{msgErr}</Text>}
+
+  <View style={styles.chatInputRow}>
+    <TextInput
+      value={msgText}
+      onChangeText={setMsgText}
+      placeholder="Message the group…"
+      placeholderTextColor="#6B7280"
+      style={styles.chatInput}
+      maxLength={280}
+    />
+    <TouchableOpacity
+      onPress={sendMessage}
+      disabled={sending || !msgText.trim()}
+      style={[styles.chatSendBtn, (sending || !msgText.trim()) && { opacity: 0.6 }]}
+    >
+      <Text style={styles.chatSendText}>{sending ? "..." : "Send"}</Text>
+    </TouchableOpacity>
+  </View>
+</View>
 
       {/* Map */}
       <Text style={styles.sectionTitle}>Live locations</Text>
@@ -407,6 +530,82 @@ const styles = StyleSheet.create({
     color: '#E0E7FF',
     fontSize: 14,
   },
+chatCard: {
+  backgroundColor: "#111827",
+  borderRadius: 20,
+  padding: 16,
+},
+
+chatList: {
+  height: 180,
+  backgroundColor: "#0B0F1A",
+  borderRadius: 14,
+  padding: 10,
+  borderWidth: 1,
+  borderColor: "#1F2937",
+},
+
+chatBubble: {
+  padding: 10,
+  borderRadius: 12,
+  marginBottom: 10,
+  maxWidth: "92%",
+},
+
+chatMine: {
+  alignSelf: "flex-end",
+  backgroundColor: "#2E1065",
+  borderWidth: 1,
+  borderColor: "#4C1D95",
+},
+
+chatOther: {
+  alignSelf: "flex-start",
+  backgroundColor: "#111827",
+  borderWidth: 1,
+  borderColor: "#1F2937",
+},
+
+chatMeta: {
+  color: "#A5B4FC",
+  fontSize: 12,
+  fontWeight: "600",
+  marginBottom: 4,
+},
+
+chatText: {
+  color: "#FFFFFF",
+  fontSize: 14,
+},
+
+chatInputRow: {
+  flexDirection: "row",
+  alignItems: "center",
+  marginTop: 12,
+},
+
+chatInput: {
+  flex: 1,
+  height: 44,
+  backgroundColor: "#1F2937",
+  borderRadius: 12,
+  paddingHorizontal: 14,
+  color: "#FFFFFF",
+},
+
+chatSendBtn: {
+  marginLeft: 10,
+  backgroundColor: "#6366F1",
+  height: 44,
+  borderRadius: 12,
+  paddingHorizontal: 16,
+  justifyContent: "center",
+},
+
+chatSendText: {
+  color: "#FFFFFF",
+  fontWeight: "600",
+},
 
   sectionTitle: {
     color: '#FFFFFF',
