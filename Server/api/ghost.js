@@ -39,7 +39,7 @@ router.post('/wake-up', async (req, res) => {
       typeof prompt === "string" && prompt.trim()
         ? prompt.trim().slice(0, 400)
         : "Call and casually check in. Sound normal and calm.";
-
+    console.log(userPrompt)
     // ---- SYSTEM WRAPPER (CRITICAL) ----
     const finalPrompt = `
 Roleplay as ${safePersona}.
@@ -55,7 +55,7 @@ RULES:
 - Sound realistic and casual
 - One short sentence preferred
 `;
-
+console.log("final prompt:", finalPrompt)
     const result = await model.generateContent(finalPrompt);
     const introText = result.response.text().trim();
 
