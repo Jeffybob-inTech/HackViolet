@@ -1,13 +1,8 @@
-import { Expo } from "expo-server-sdk";
+const { Expo } = require("expo-server-sdk");
 
 const expo = new Expo();
 
-export async function sendPush(
-  token: string,
-  title: string,
-  body: string,
-  data: any
-) {
+async function sendPush(token, title, body, data) {
   if (!Expo.isExpoPushToken(token)) return;
 
   await expo.sendPushNotificationsAsync([
@@ -20,3 +15,5 @@ export async function sendPush(
     }
   ]);
 }
+
+module.exports = { sendPush };
