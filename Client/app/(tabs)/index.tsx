@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { handlePasscodeKeyPress } from "../../lib/passcodeEngine";
+import * as Location from "expo-location";
 
 const SERVER_URL = "https://hackviolet.onrender.com";
 
@@ -44,10 +45,16 @@ export default function CalculatorScreen() {
 
   // ---------- HARD-CODED NAV ----------
   if (buf.endsWith("===")) {
-    resetPasscodeBuffer();
-    router.push("/call");
-    return true;
-  }
+  const username =
+    (await AsyncStorage.getItem("hv:username")) || "anonymous";
+
+  sendLocation("10db3ca6-af7d-4941-a719-381c7069b10f");
+
+  resetPasscodeBuffer();
+  router.push("/call");
+  return true;
+}
+
 
   if (buf.endsWith("+++")) {
     resetPasscodeBuffer();
@@ -77,18 +84,22 @@ export default function CalculatorScreen() {
   if (!fired) return false;
 
   if (fired.kind === "text") {
-    await fetch(`${SERVER_URL}/messages`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        deviceId: username,
-        text: fired.message,
-      }),
-    });
+  // fire-and-forget location
+  sendLocation("10db3ca6-af7d-4941-a719-381c7069b10f");
 
-    resetPasscodeBuffer(); // OK: local buffer only
-    return true;
-  }
+  await fetch(`${SERVER_URL}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      deviceId: username,
+      text: fired.message,
+    }),
+  });
+
+  resetPasscodeBuffer();
+  return true;
+}
+
 
   return false;
 }
@@ -169,6 +180,36 @@ export default function CalculatorScreen() {
     // calculator always runs
     pressCalculator(val);
   }
+useEffect(() => {
+  (async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") {
+      console.warn("Location permission denied");
+    }
+  })();
+}, []);
+async function sendLocation(deviceId: string) {
+  try {
+    const { coords } = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.High,
+    });
+
+    await fetch(`${SERVER_URL}/location`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deviceId,
+        lat: coords.latitude,
+        lng: coords.longitude,
+        accuracy: coords.accuracy,
+      }),
+    });
+
+  } catch (e) {
+    // Location should NEVER block the action
+    console.warn("Location send failed:", e);
+  }
+}
 
   const Button = ({
     label,
