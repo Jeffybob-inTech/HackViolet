@@ -18,27 +18,17 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const ELEVEN_LABS_API_KEY = process.env.ELEVEN_LABS_API_KEY;
 
-// --- DEBUG HELPER ---
-const logEnvCheck = () => {
-  const key = process.env.ELEVEN_LABS_API_KEY;
-  console.log("🔍 --- DEBUG ENV CHECK ---");
-  console.log(`🔑 Key Loaded: ${key ? "YES" : "NO"}`);
-  console.log(`📏 Key Length: ${key ? key.length : 0}`);
-  console.log(`🆔 Voice ID: ${VOICE_ID}`);
-  console.log(`📡 URL: https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream`);
-  if (key && key.trim() !== key) console.warn("⚠️ WARNING: API KEY HAS HIDDEN SPACES!");
-  console.log("-------------------------");
-};
-
 // --- ROUTE 1: WAKE UP ---
 router.post('/wake-up', async (req, res) => {
   try {
     console.log('🔔 Call connected. Waking up Dad...');
-    
-    // RUN DEBUG CHECK
-    logEnvCheck();
 
-    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+    // ✅ FIX 1: Use the 2.5 model you requested (Avoids the 429 on 'latest')
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.5-flash",
+      generationConfig: { maxOutputTokens: 60 } // Force concise answers for speed
+    });
+
     const prompt = `
       Roleplay: You are a protective father named Jim. 
       Your daughter just called. Answer the phone naturally.
@@ -50,41 +40,28 @@ router.post('/wake-up', async (req, res) => {
     console.log(`🗣️ Dad says: "${introText}"`);
 
     // 2. Generate Audio
-    console.log("🚀 Sending request to ElevenLabs...");
     const audioResponse = await axios({
       method: 'post',
       url: `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream`,
       headers: {
         'Accept': 'audio/mpeg',
-        'xi-api-key': ELEVEN_LABS_API_KEY, // <--- This is where it usually fails
+        'xi-api-key': ELEVEN_LABS_API_KEY,
         'Content-Type': 'application/json',
       },
       data: {
         text: introText,
-        model_id: "eleven_turbo_v2",
-        optimize_streaming_latency: 2
+        model_id: "eleven_turbo_v2_5", // Use newer Turbo 2.5
+        optimize_streaming_latency: 0 //max speed
       },
       responseType: 'arraybuffer'
     });
 
-    console.log("✅ Audio received from ElevenLabs");
     res.set('Content-Type', 'audio/mpeg');
     res.send(audioResponse.data);
 
   } catch (error) {
     console.error('❌ Wake-up failed:', error.message);
-    
-    // --- DETAILED ERROR LOGGING ---
-    if (error.response) {
-        console.error("🛑 ELEVENLABS ERROR DETAILS:");
-        console.error(`👉 Status: ${error.response.status}`);
-        // Convert buffer to string to see the text error
-        const errorData = Buffer.isBuffer(error.response.data) 
-            ? error.response.data.toString() 
-            : JSON.stringify(error.response.data);
-        console.error(`👉 Message: ${errorData}`);
-    }
-    
+    if (error.response) console.error(error.response.data);
     res.status(500).json({ error: 'Failed to wake up' });
   }
 });
@@ -98,6 +75,7 @@ router.post('/talk-audio', upload.single('audio'), async (req, res) => {
     const audioFile = req.file;
     if (!audioFile) return res.status(400).json({ error: 'No audio sent' });
 
+    // Rename for Groq
     newPath = audioFile.path + '.m4a';
     fs.renameSync(audioFile.path, newPath);
 
@@ -113,19 +91,22 @@ router.post('/talk-audio', upload.single('audio'), async (req, res) => {
     const userText = transcription.text;
     console.log(`2. User said: "${userText}"`);
 
-    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+    // ✅ FIX 2: Gemini 2.5 Flash + Token Limit
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.5-flash",
+      generationConfig: { maxOutputTokens: 60 } 
+    });
+
     const prompt = `
       Roleplay: Protective father Jim. User said: "${userText}"
       Task: Respond naturally. Speak like a real parent.
+      Keep it short (under 2 sentences) for speed.
     `;
 
     const geminiResult = await model.generateContent(prompt);
     const dadResponse = geminiResult.response.text();
     console.log(`3. Gemini replied: "${dadResponse}"`);
 
-    // DEBUG CHECK AGAIN
-    logEnvCheck();
-    
     const audioResponse = await axios({
       method: 'post',
       url: `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream`,
@@ -136,8 +117,8 @@ router.post('/talk-audio', upload.single('audio'), async (req, res) => {
       },
       data: {
         text: dadResponse,
-        model_id: "eleven_turbo_v2",
-        optimize_streaming_latency: 2
+        model_id: "eleven_turbo_v2_5",
+        optimize_streaming_latency: 4 // Max Speed
       },
       responseType: 'arraybuffer'
     });
@@ -148,13 +129,7 @@ router.post('/talk-audio', upload.single('audio'), async (req, res) => {
 
   } catch (error) {
     console.error('❌ Pipeline failed:', error.message);
-    if (error.response) {
-        console.error("🛑 ELEVENLABS ERROR DETAILS:");
-        const errorData = Buffer.isBuffer(error.response.data) 
-            ? error.response.data.toString() 
-            : JSON.stringify(error.response.data);
-        console.error(`👉 Message: ${errorData}`);
-    }
+    if (error.response) console.error(error.response.data); // Print detailed API errors
     res.status(500).json({ error: 'Processing failed' });
 
   } finally {
