@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import * as Notifications from "expo-notifications";
 import { useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Location from "expo-location";
 
 
 Notifications.setNotificationHandler({
@@ -36,6 +37,84 @@ type Member = {
   lng: number;
   status: 'safe' | 'alert';
 };
+function AnimatedBackground() {
+  const orb1 = useRef(new Animated.Value(0)).current;
+  const orb2 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(orb1, { toValue: 1, duration: 18000, useNativeDriver: true }),
+        Animated.timing(orb1, { toValue: 0, duration: 18000, useNativeDriver: true }),
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(orb2, { toValue: 1, duration: 24000, useNativeDriver: true }),
+        Animated.timing(orb2, { toValue: 0, duration: 24000, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Animated.View
+        style={[
+          styles.bgOrb,
+          {
+            backgroundColor: "#6366F1",
+            transform: [
+              {
+                translateX: orb1.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-120, 120],
+                }),
+              },
+              {
+                translateY: orb1.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-80, 60],
+                }),
+              },
+              {
+                scale: orb1.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 1.15],
+                }),
+              },
+            ],
+          },
+        ]}
+      />
+
+      <Animated.View
+        style={[
+          styles.bgOrb,
+          {
+            backgroundColor: "#8B5CF6",
+            top: 320,
+            left: -160,
+            transform: [
+              {
+                translateX: orb2.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [140, -140],
+                }),
+              },
+              {
+                scale: orb2.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1.1, 0.95],
+                }),
+              },
+            ],
+          },
+        ]}
+      />
+    </View>
+  );
+}
 
 export default function HomeScreen() {
   const pingAnim = useRef(new Animated.Value(0)).current;
@@ -64,6 +143,38 @@ const [sending, setSending] = useState(false);
 
 const [liveLocations, setLiveLocations] = useState<LocationRow[]>([]);
 const [pingMarkers, setPingMarkers] = useState<Member[]>([]);
+async function updateMyLocation(deviceId: number) {
+  const { status } = await Location.requestForegroundPermissionsAsync();
+  if (status !== "granted") return;
+
+  const pos = await Location.getCurrentPositionAsync({
+    accuracy: Location.Accuracy.Balanced,
+  });
+
+  const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+
+  let city: string | null = null;
+  try {
+    const res = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+    city =
+      res[0]?.city ||
+      res[0]?.subregion ||
+      res[0]?.region ||
+      null;
+  } catch {}
+
+  await fetch(`${SERVER_URL}/location`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      deviceId,
+      lat,
+      lng,
+      accuracy,
+      city,
+    }),
+  });
+}
 
 function triggerPing() {
   pingAnim.setValue(0);
@@ -82,23 +193,42 @@ function triggerPing() {
 }
 
 useEffect(() => {
-  const sub = Notifications.addNotificationReceivedListener(notification => {
-    const data = notification.request.content.data as Partial<PingPayload>;
+  let alive = true;
 
-    if (data?.type === "PING" && typeof data.lat === "number" && typeof data.lng === "number") {
-      triggerPing();
-      handlePing(data.lat, data.lng);
-    }
-  });
+  ensureDeviceId()
+    .then(async id => {
+      if (!alive) return;
+      setMyDeviceId(id);
+      await updateMyLocation(id); // 🔑 THIS is where city gets stored
+    })
+    .catch(console.error);
 
-  return () => sub.remove();
+  return () => {
+    alive = false;
+  };
 }, []);
-useEffect(() => {
-  AsyncStorage.getItem("deviceId").then((v) => {
-    const n = v ? Number(v) : null;
-    setMyDeviceId(Number.isFinite(n) ? n : null);
-  });
-}, []);
+
+async function getCity(lat: number, lng: number) {
+  try {
+    const res = await Location.reverseGeocodeAsync({
+      latitude: lat,
+      longitude: lng,
+    });
+
+    const place = res[0];
+    if (!place) return null;
+
+    // prefer city, fall back sensibly
+    return (
+      place.city ||
+      place.subregion ||
+      place.region ||
+      null
+    );
+  } catch {
+    return null;
+  }
+}
 async function loadMessages() {
   try {
     const res = await fetch(`${SERVER_URL}/messages`);
@@ -125,12 +255,14 @@ useEffect(() => {
     clearInterval(id);
   };
 }, []);
+
+
 async function sendMessage() {
   setMsgErr(null);
 
   if (!myDeviceId) {
-    setMsgErr("No deviceId yet.");
-    return;
+    //setMsgErr("Device not ready yet");
+    //return;
   }
 
   const cleaned = msgText.trim();
@@ -141,7 +273,10 @@ async function sendMessage() {
     const res = await fetch(`${SERVER_URL}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ deviceId: myDeviceId, text: cleaned }),
+      body: JSON.stringify({
+        deviceId: 1,
+        text: cleaned,
+      }),
     });
 
     if (!res.ok) {
@@ -151,12 +286,13 @@ async function sendMessage() {
 
     setMsgText("");
     await loadMessages();
-  } catch (e) {
+  } catch {
     setMsgErr("Network request failed");
   } finally {
     setSending(false);
   }
 }
+
 
 
 useEffect(() => {
@@ -194,6 +330,21 @@ useEffect(() => {
     clearInterval(id);
   };
 }, []);
+useEffect(() => {
+  let alive = true;
+
+  ensureDeviceId()
+    .then(id => {
+      if (alive) setMyDeviceId(id);
+    })
+    .catch(err => {
+      console.error("Device registration failed", err);
+    });
+
+  return () => {
+    alive = false;
+  };
+}, []);
 
 
 const [members, setMembers] = useState<Member[]>([
@@ -206,17 +357,39 @@ const [members, setMembers] = useState<Member[]>([
       status: 'safe',
     },
   ]);
+async function ensureDeviceId() {
+  const stored = await AsyncStorage.getItem("deviceId");
+  if (stored) return Number(stored);
+
+  // get push token FIRST
+  const token = (await Notifications.getExpoPushTokenAsync()).data;
+
+  const res = await fetch("https://hackviolet.onrender.com/devices/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pushToken: token }),
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to register device");
+  }
+
+  const { deviceId } = await res.json();
+  await AsyncStorage.setItem("deviceId", String(deviceId));
+  return deviceId;
+}
 
 async function sendPing() {
+  if (!myDeviceId) {
+    console.warn("No deviceId yet");
+    return;
+  }
+
   try {
     const res = await fetch("https://hackviolet.onrender.com/call", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        deviceId: 1, // store this after /devices/register
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deviceId: myDeviceId }),
     });
 
     if (!res.ok) {
@@ -322,10 +495,11 @@ useEffect(() => {
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 80 }}>
       {/* Header */}
+      <AnimatedBackground />
       <View style={styles.headerRow}>
         <Text style={styles.header}>Home</Text>
-        <TouchableOpacity onPress={() => router.push('/settings')}>
-          <Text style={styles.settings}>Settings</Text>
+        <TouchableOpacity onPress={() => router.push('/')}>
+          <Text style={styles.settings}>Calculator</Text>
         </TouchableOpacity>
       </View>
     <Animated.View
@@ -488,133 +662,6 @@ useEffect(() => {
   );
 }
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0B0F1A',
-    padding: 16,
-  },
-
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 50,
-    marginBottom: 16,
-  },
-
-  header: {
-    fontSize: 32,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-
-  settings: {
-    color: '#A5B4FC',
-    fontSize: 16,
-  },
-
-  hero: {
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 20,
-  },
-
-  heroTitle: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-
-  heroSub: {
-    marginTop: 6,
-    color: '#E0E7FF',
-    fontSize: 14,
-  },
-chatCard: {
-  backgroundColor: "#111827",
-  borderRadius: 20,
-  padding: 16,
-},
-
-chatList: {
-  height: 180,
-  backgroundColor: "#0B0F1A",
-  borderRadius: 14,
-  padding: 10,
-  borderWidth: 1,
-  borderColor: "#1F2937",
-},
-
-chatBubble: {
-  padding: 10,
-  borderRadius: 12,
-  marginBottom: 10,
-  maxWidth: "92%",
-},
-
-chatMine: {
-  alignSelf: "flex-end",
-  backgroundColor: "#2E1065",
-  borderWidth: 1,
-  borderColor: "#4C1D95",
-},
-
-chatOther: {
-  alignSelf: "flex-start",
-  backgroundColor: "#111827",
-  borderWidth: 1,
-  borderColor: "#1F2937",
-},
-
-chatMeta: {
-  color: "#A5B4FC",
-  fontSize: 12,
-  fontWeight: "600",
-  marginBottom: 4,
-},
-
-chatText: {
-  color: "#FFFFFF",
-  fontSize: 14,
-},
-
-chatInputRow: {
-  flexDirection: "row",
-  alignItems: "center",
-  marginTop: 12,
-},
-
-chatInput: {
-  flex: 1,
-  height: 44,
-  backgroundColor: "#1F2937",
-  borderRadius: 12,
-  paddingHorizontal: 14,
-  color: "#FFFFFF",
-},
-
-chatSendBtn: {
-  marginLeft: 10,
-  backgroundColor: "#6366F1",
-  height: 44,
-  borderRadius: 12,
-  paddingHorizontal: 16,
-  justifyContent: "center",
-},
-
-chatSendText: {
-  color: "#FFFFFF",
-  fontWeight: "600",
-},
-
-  sectionTitle: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '500',
-    marginBottom: 10,
-    marginTop: 20,
-  },
-
   addCard: {
     backgroundColor: '#111827',
     borderRadius: 20,
@@ -648,32 +695,190 @@ chatSendText: {
     color: '#FFFFFF',
     fontWeight: '500',
   },
-
-  mapCard: {
-    height: 220,
-    borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: '#111827',
+  container: {
+    flex: 1,
+    backgroundColor: "#070A14",
+    padding: 18,
   },
 
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 54,
+    marginBottom: 18,
+  },
+
+  header: {
+    fontSize: 34,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: 0.3,
+  },
+
+  settings: {
+    color: "#A5B4FC",
+    fontSize: 16,
+    fontWeight: "500",
+  },
+
+  /* ===== Hero ===== */
+  hero: {
+    borderRadius: 28,
+    padding: 24,
+    marginBottom: 22,
+    shadowColor: "#6366F1",
+    shadowOpacity: 0.35,
+    shadowRadius: 30,
+    elevation: 12,
+  },
+
+  heroTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+
+  heroSub: {
+    marginTop: 8,
+    color: "#E0E7FF",
+    fontSize: 14,
+    lineHeight: 20,
+  },
+
+  /* ===== Chat ===== */
+  chatCard: {
+    backgroundColor: "rgba(17,24,39,0.85)",
+    borderRadius: 22,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#1F2937",
+  },
+
+  chatList: {
+    maxHeight: 190,
+    backgroundColor: "#070A14",
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#1F2937",
+    marginBottom: 10,
+  },
+
+  chatBubble: {
+    padding: 12,
+    borderRadius: 14,
+    marginBottom: 10,
+    maxWidth: "88%",
+  },
+
+  chatMine: {
+    alignSelf: "flex-end",
+    backgroundColor: "#312E81",
+    borderWidth: 1,
+    borderColor: "#4F46E5",
+  },
+
+  chatOther: {
+    alignSelf: "flex-start",
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#1F2937",
+  },
+
+  chatMeta: {
+    color: "#A5B4FC",
+    fontSize: 11,
+    fontWeight: "600",
+    marginBottom: 4,
+    letterSpacing: 0.3,
+  },
+
+  chatText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    lineHeight: 19,
+  },
+
+  chatInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+  },
+
+  chatInput: {
+    flex: 1,
+    height: 46,
+    backgroundColor: "#1F2937",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    color: "#FFFFFF",
+    fontSize: 14,
+  },
+
+  chatSendBtn: {
+    marginLeft: 10,
+    backgroundColor: "#6366F1",
+    height: 46,
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    justifyContent: "center",
+    shadowColor: "#6366F1",
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+
+  chatSendText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    letterSpacing: 0.3,
+  },
+
+  /* ===== Sections ===== */
+  sectionTitle: {
+    color: "#FFFFFF",
+    fontSize: 19,
+    fontWeight: "600",
+    marginBottom: 12,
+    marginTop: 24,
+  },
+
+  /* ===== Map ===== */
+  mapCard: {
+    height: 240,
+    borderRadius: 24,
+    overflow: "hidden",
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#1F2937",
+    shadowColor: "#000",
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
+    elevation: 10,
+  },
+
+  /* ===== Members (if still used) ===== */
   memberCard: {
-    backgroundColor: '#111827',
-    borderRadius: 18,
+    backgroundColor: "#111827",
+    borderRadius: 20,
     padding: 16,
     marginBottom: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#1F2937",
   },
 
   memberName: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "600",
   },
 
   memberSub: {
-    color: '#9CA3AF',
+    color: "#9CA3AF",
     fontSize: 13,
     marginTop: 2,
   },
@@ -685,10 +890,20 @@ chatSendText: {
   },
 
   safe: {
-    backgroundColor: '#22C55E',
+    backgroundColor: "#22C55E",
   },
 
   alert: {
-    backgroundColor: '#EF4444',
+    backgroundColor: "#EF4444",
   },
+  bgOrb: {
+  position: "absolute",
+  width: 520,
+  height: 520,
+  borderRadius: 260,
+  opacity: 0.18,
+  top: -200,
+  left: -120,
+},
+
 });
