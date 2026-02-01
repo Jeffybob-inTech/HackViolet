@@ -36,6 +36,19 @@ app.post("/devices/register", async (req, res) => {
   console.log("device register")
   res.json({ deviceId: data.id });
 });
+// gets teh user locations
+app.get("/locations", async (_req, res) => {
+  const { data, error } = await supabase
+    .from("locations")
+    .select("device_id, lat, lng, accuracy, updated_at");
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: "db_error" });
+  }
+
+  res.json(data);
+});
 
 /* ---------- update location ---------- */
 app.post("/location", async (req, res) => {

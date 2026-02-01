@@ -38,6 +38,15 @@ type Member = {
 
 export default function HomeScreen() {
   const pingAnim = useRef(new Animated.Value(0)).current;
+type LocationRow = {
+  device_id: number;
+  lat: number;
+  lng: number;
+  accuracy: number | null;
+};
+
+const [liveLocations, setLiveLocations] = useState<LocationRow[]>([]);
+const [pingMarkers, setPingMarkers] = useState<Member[]>([]);
 
 function triggerPing() {
   pingAnim.setValue(0);
@@ -80,6 +89,29 @@ useEffect(() => {
   });
 
   return () => sub.remove();
+}, []);
+
+
+useEffect(() => {
+  let alive = true;
+
+  const loadLocations = async () => {
+    try {
+      const res = await fetch("https://hackviolet.onrender.com/locations");
+      const data = await res.json();
+      if (alive) setLiveLocations(data);
+    } catch (e) {
+      console.error("Failed to load locations", e);
+    }
+  };
+
+  loadLocations();
+  const id = setInterval(loadLocations, 10_000); // poll
+
+  return () => {
+    alive = false;
+    clearInterval(id);
+  };
 }, []);
 
 
@@ -144,27 +176,33 @@ async function sendPing() {
   }).start();
 };
 
+const mapRef = useRef<MapView>(null);
+
+useEffect(() => {
+  if (!liveLocations.length) return;
+
+  mapRef.current?.animateToRegion({
+    latitude: liveLocations[0].lat,
+    longitude: liveLocations[0].lng,
+    latitudeDelta: 0.05,
+    longitudeDelta: 0.05,
+  }, 500);
+}, [liveLocations]);
 
 
 function handlePing(lat: number, lng: number) {
   const pingId = `ping-${Date.now()}`;
 
-  setMembers(m => [
-    ...m,
-    {
-      id: pingId,
-      name: "Ping",
-      phone: "",
-      lat,
-      lng,
-      status: "alert",
-    },
+  setPingMarkers(p => [
+    ...p,
+    { id: pingId, name: "Ping", phone: "", lat, lng, status: "alert" },
   ]);
 
   setTimeout(() => {
-    setMembers(m => m.filter(x => x.id !== pingId));
-  }, 60_000);
+    setPingMarkers(p => p.filter(x => x.id !== pingId));
+  }, 60000);
 }
+
 useEffect(() => {
   const handlePingNotification = (data: any) => {
     if (data?.type !== "PING") return;
@@ -266,24 +304,35 @@ useEffect(() => {
       <Text style={styles.sectionTitle}>Live locations</Text>
 
       <View style={styles.mapCard}>
-        <MapView
-          style={StyleSheet.absoluteFillObject}
+        <MapView style={StyleSheet.absoluteFillObject}
           initialRegion={{
             latitude: members[0]?.lat ?? 37.7749,
             longitude: members[0]?.lng ?? -122.4194,
             latitudeDelta: 20,
             longitudeDelta: 20,
-          }}
-        >
-          {members.map(m => (
-            <Marker
-              key={m.id}
-              coordinate={{ latitude: m.lat, longitude: m.lng }}
-              title={m.name}
-              pinColor={m.status === 'safe' ? '#22C55E' : '#EF4444'}
-            />
-          ))}
-        </MapView>
+          }}>
+  {liveLocations.map(l => (
+    <Marker
+      key={`live-${l.device_id}`}
+      coordinate={{
+        latitude: l.lat,
+        longitude: l.lng,
+      }}
+      pinColor="#3B82F6"
+      title={`Device ${l.device_id}`}
+    />
+  ))}
+
+  {pingMarkers.map(p => (
+    <Marker
+      key={p.id}
+      coordinate={{ latitude: p.lat, longitude: p.lng }}
+      pinColor="#EF4444"
+      title="Incoming Ping"
+    />
+  ))}
+</MapView>
+
       </View>
 
       {/* Members List */}
