@@ -23,7 +23,6 @@ const VOICE_BY_PERSONA = {
   Dad: "WzpxTcpqXE1YZwSZOldz",
   Friend: "tLgq4zzCK7t30VvheSvD",
 };
-let persona;
 // --- ROUTE 1: WAKE UP ---
 router.post('/wake-up', async (req, res) => {
   try {
@@ -42,7 +41,6 @@ const safePersona = allowedPersonas.includes(persona)
   ? persona
   : "Dad";
 const VOICE_ID = VOICE_BY_PERSONA[safePersona];
-persona = persona;
 
     const userPrompt =
       typeof prompt === "string" && prompt.trim()
