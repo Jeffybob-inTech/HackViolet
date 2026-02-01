@@ -23,7 +23,7 @@ router.post('/wake-up', async (req, res) => {
   try {
     console.log('🔔 Call connected. Waking up Dad...');
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     const prompt = `
       Roleplay: You are a protective father named Jim. 
@@ -88,7 +88,7 @@ router.post('/talk-audio', upload.single('audio'), async (req, res) => {
     console.log(`2. User said: "${userText}"`);
 
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     const prompt = `
       Roleplay: Protective father Jim. User said: "${userText}"
